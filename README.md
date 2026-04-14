@@ -54,8 +54,39 @@ npm run dev
 | `npm run db:push` | Push schema to DB (no migration file) |
 | `npm run db:seed` | Seed initial data |
 | `npm run db:studio` | Open Prisma Studio GUI |
-| `npm test` | Run all tests |
+| `npm test` | Run all tests (Vitest: unit + API smoke tests) |
 | `npm run test:watch` | Run tests in watch mode |
+| `npm run test:integration` | Marketplace DB integration test (needs `DATABASE_URL` + migrations) |
+
+### API documentation (Swagger)
+
+With the server running (`npm run dev`):
+
+- **Swagger UI:** [http://localhost:4000/api/docs](http://localhost:4000/api/docs) (port from `PORT`)
+- **OpenAPI JSON:** [http://localhost:4000/api/openapi.json](http://localhost:4000/api/openapi.json)
+
+Set `PUBLIC_API_URL` in `.env` so the “Try it out” server URL matches your deployment (e.g. `https://api.example.com`).
+
+The OpenAPI document lives in `src/docs/openapi.ts` — extend `paths` when you add routes.
+
+### Automated tests
+
+- **Default (`npm test`):** runs without requiring a running server; includes slot-engine unit tests, `GET /api/health`, and Swagger/OpenAPI smoke tests.
+- **Optional DB integration tests:** run `npm run test:integration` (requires `DATABASE_URL` in `.env` and migrations applied: `npm run db:migrate` or `npx prisma migrate deploy`). This runs `tests/api/marketplace.integration.test.ts` against your database.
+
+### Images (clubs & categories)
+
+Image fields are **HTTPS URLs** (no file upload in this API yet):
+
+| Entity    | Field        | Purpose |
+|-----------|--------------|---------|
+| Partner   | `logo`       | Square / avatar logo |
+| Partner   | `coverImage` | Banner / hero image |
+| Category  | `imageUrl`   | Category card / listing image |
+
+Partners can update `logo` and `coverImage` via `PATCH /api/partners/:id`. Super admins set category `imageUrl` via `POST/PATCH /api/categories`. The seed script fills sample Unsplash URLs for local development.
+
+After pulling new migrations, run `npm run db:migrate` then `npm run db:seed` to refresh sample image URLs.
 
 ## API Endpoints
 
@@ -127,6 +158,7 @@ npm run dev
 ```
 src/
   config/          # Zod-validated env, app config
+  docs/            # OpenAPI document (Swagger UI + /api/openapi.json)
   lib/             # Prisma client, Redis client, JWT helpers, slot engine, errors
   middleware/      # Auth, RBAC, validation, error handler, rate limiter, logger
   modules/         # Feature modules (controller -> service -> Prisma)
@@ -143,6 +175,9 @@ src/
     marketplace/
   app.ts           # Express app setup
   server.ts        # Entry point
+tests/
+  api/             # Vitest + Supertest (health, Swagger, optional DB integration)
+vitest.config.ts   # Vitest configuration
 ```
 
 ## Default Credentials

@@ -59,6 +59,8 @@ model Partner {
   userId     String  @unique
   name       String
   logo       String?
+  /** Hero / banner image URL (HTTPS recommended) */
+  coverImage String?
   city       String
   phone      String
   address    String?
@@ -82,6 +84,8 @@ model Category {
   id   String @id @default(uuid())
   name String @unique
   slug String @unique
+  /** Card / listing image URL (HTTPS recommended) */
+  imageUrl String?
   createdAt DateTime @default(now())
 
   subCategories SubCategory[]
@@ -95,6 +99,8 @@ model SubCategory {
   categoryId         String
   name               String
   defaultDurationMin Int
+  /** Optional illustration URL (e.g. Cloudinary) */
+  imageUrl           String?
 
   category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 

@@ -1,13 +1,15 @@
+import bcrypt from 'bcryptjs';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../lib/prisma';
 import { paginate, paginatedResponse, PaginationInput } from '../../lib/pagination';
-import { NotFoundError, ForbiddenError } from '../../lib/errors';
-import { ListPartnersQuery, UpdatePartnerInput } from './partners.schema';
+import { NotFoundError, ForbiddenError, ConflictError, BadRequestError } from '../../lib/errors';
+import { CreatePartnerInput, ListPartnersQuery, UpdatePartnerInput } from './partners.schema';
 
 const partnerSelect = {
   id: true,
   name: true,
   logo: true,
+  coverImage: true,
   city: true,
   phone: true,
   address: true,
@@ -54,6 +56,60 @@ export async function getPartnerByUserId(userId: string) {
   const partner = await prisma.partner.findUnique({ where: { userId } });
   if (!partner) throw new NotFoundError('Partner');
   return partner;
+}
+
+export async function createPartner(input: CreatePartnerInput) {
+  const existing = await prisma.user.findUnique({ where: { email: input.email } });
+  if (existing) {
+    throw new ConflictError('EMAIL_EXISTS', 'An account with this email already exists');
+  }
+
+  const category = await prisma.category.findUnique({ where: { id: input.categoryId } });
+  if (!category) {
+    throw new BadRequestError('INVALID_CATEGORY', 'The specified category does not exist');
+  }
+
+  if (input.packId) {
+    const pack = await prisma.pack.findUnique({ where: { id: input.packId } });
+    if (!pack) throw new NotFoundError('Pack');
+  }
+
+  const hashedPassword = await bcrypt.hash(input.password, 12);
+
+  const user = await prisma.user.create({
+    data: {
+      email: input.email,
+      password: hashedPassword,
+      role: 'PARTNER',
+      partner: {
+        create: {
+          name: input.name,
+          city: input.city,
+          phone: input.phone,
+          address: input.address,
+          categoryId: input.categoryId,
+          logo: input.logo ?? undefined,
+          coverImage: input.coverImage ?? undefined,
+          packId: input.packId ?? undefined,
+          isVerified: input.isVerified ?? false,
+        },
+      },
+    },
+  });
+
+  const created = await prisma.partner.findUnique({
+    where: { userId: user.id },
+    select: partnerSelect,
+  });
+  if (!created) throw new NotFoundError('Partner');
+  return created;
+}
+
+export async function deletePartner(id: string) {
+  const partner = await prisma.partner.findUnique({ where: { id } });
+  if (!partner) throw new NotFoundError('Partner');
+
+  await prisma.user.delete({ where: { id: partner.userId } });
 }
 
 export async function updatePartner(id: string, userId: string, role: string, input: UpdatePartnerInput) {

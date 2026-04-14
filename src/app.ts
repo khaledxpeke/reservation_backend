@@ -1,9 +1,11 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import swaggerUi from 'swagger-ui-express';
 import { globalLimiter } from './middleware/rateLimiter';
 import { errorHandler } from './middleware/errorHandler';
 import { requestLogger } from './middleware/requestLogger';
+import { getOpenApiSpec } from './docs/openapi';
 
 import authRoutes from './modules/auth/auth.routes';
 import usersRoutes from './modules/users/users.routes';
@@ -19,7 +21,20 @@ import marketplaceRoutes from './modules/marketplace/marketplace.routes';
 
 const app = express();
 
-app.use(helmet());
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", 'data:', 'https:'],
+        connectSrc: ["'self'"],
+        fontSrc: ["'self'", 'https:', 'data:'],
+      },
+    },
+  }),
+);
 app.use(cors());
 app.use(express.json());
 app.use(requestLogger);
@@ -28,6 +43,22 @@ app.use(globalLimiter);
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
+
+app.get('/api/openapi.json', (_req, res) => {
+  res.json(getOpenApiSpec());
+});
+
+app.use(
+  '/api/docs',
+  swaggerUi.serve,
+  swaggerUi.setup(getOpenApiSpec(), {
+    customSiteTitle: 'Padel Résa API',
+    swaggerOptions: {
+      persistAuthorization: true,
+      displayRequestDuration: true,
+    },
+  }),
+);
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', usersRoutes);

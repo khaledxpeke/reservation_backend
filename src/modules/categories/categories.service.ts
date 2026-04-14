@@ -1,6 +1,11 @@
 import { prisma } from '../../lib/prisma';
 import { ConflictError, NotFoundError } from '../../lib/errors';
-import { CreateCategoryInput, CreateSubCategoryInput } from './categories.schema';
+import {
+  CreateCategoryInput,
+  CreateSubCategoryInput,
+  UpdateCategoryInput,
+  UpdateSubCategoryInput,
+} from './categories.schema';
 
 export async function listCategories() {
   return prisma.category.findMany({
@@ -20,7 +25,7 @@ export async function createCategory(input: CreateCategoryInput) {
   return prisma.category.create({ data: input, include: { subCategories: true } });
 }
 
-export async function updateCategory(id: string, data: Partial<CreateCategoryInput>) {
+export async function updateCategory(id: string, data: UpdateCategoryInput) {
   const category = await prisma.category.findUnique({ where: { id } });
   if (!category) throw new NotFoundError('Category');
 
@@ -50,7 +55,7 @@ export async function addSubCategory(categoryId: string, input: CreateSubCategor
   });
 }
 
-export async function updateSubCategory(id: string, data: Partial<CreateSubCategoryInput>) {
+export async function updateSubCategory(id: string, data: UpdateSubCategoryInput) {
   const sub = await prisma.subCategory.findUnique({ where: { id } });
   if (!sub) throw new NotFoundError('SubCategory');
 

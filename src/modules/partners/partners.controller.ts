@@ -51,3 +51,21 @@ export async function assignPack(req: Request, res: Response, next: NextFunction
     next(err);
   }
 }
+
+export async function createPartner(req: Request, res: Response, next: NextFunction) {
+  try {
+    const data = await partnersService.createPartner(req.body);
+    res.status(201).json({ success: true, data });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function deletePartner(req: Request, res: Response, next: NextFunction) {
+  try {
+    await partnersService.deletePartner(getParam(req, 'id'));
+    res.json({ success: true, data: { message: 'Partner deleted' } });
+  } catch (err) {
+    next(err);
+  }
+}

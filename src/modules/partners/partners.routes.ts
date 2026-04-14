@@ -5,6 +5,7 @@ import { authorize } from '../../middleware/authorize';
 import { validate } from '../../middleware/validate';
 import {
   listPartnersQuerySchema,
+  createPartnerSchema,
   updatePartnerSchema,
   verifyPartnerSchema,
   assignPackSchema,
@@ -19,6 +20,14 @@ router.get(
   authorize('SUPER_ADMIN'),
   validate({ query: listPartnersQuerySchema }),
   partnersController.listPartners,
+);
+
+router.post(
+  '/',
+  authenticate,
+  authorize('SUPER_ADMIN'),
+  validate({ body: createPartnerSchema }),
+  partnersController.createPartner,
 );
 
 router.get(
@@ -51,6 +60,14 @@ router.patch(
   authorize('SUPER_ADMIN'),
   validate({ params: partnerIdParamSchema, body: assignPackSchema }),
   partnersController.assignPack,
+);
+
+router.delete(
+  '/:id',
+  authenticate,
+  authorize('SUPER_ADMIN'),
+  validate({ params: partnerIdParamSchema }),
+  partnersController.deletePartner,
 );
 
 export default router;

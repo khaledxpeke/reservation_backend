@@ -14,6 +14,12 @@ const prisma = new PrismaClient();
 
 const hash = (p: string) => bcrypt.hash(p, 10);
 
+/** Demo image URLs (Lorem Picsum). Avoids Unsplash hotlink/404 issues with the Next.js Image optimizer. */
+function picsum(seed: string, w: number, h: number): string {
+  const s = seed.slice(0, 100).replace(/\s+/g, "-");
+  return `https://picsum.photos/seed/${encodeURIComponent(s)}/${w}/${h}`;
+}
+
 /** "YYYY-MM-DD" offset from today */
 function dateStr(offsetDays: number): Date {
   const d = new Date();
@@ -85,6 +91,7 @@ async function main() {
     data: {
       name: "Padel",
       slug: "padel",
+      imageUrl: picsum("category-padel", 1200, 675),
       subCategories: {
         create: [
           { name: "Padel extérieur", defaultDurationMin: 90 },
@@ -99,6 +106,7 @@ async function main() {
     data: {
       name: "Sport",
       slug: "sport",
+      imageUrl: picsum("category-sport", 1200, 675),
       subCategories: {
         create: [
           { name: "Football", defaultDurationMin: 60 },
@@ -114,6 +122,7 @@ async function main() {
     data: {
       name: "Bien-être",
       slug: "bien-etre",
+      imageUrl: picsum("category-bien-etre", 1200, 675),
       subCategories: {
         create: [
           { name: "Yoga", defaultDurationMin: 60 },
@@ -128,6 +137,7 @@ async function main() {
     data: {
       name: "Coworking",
       slug: "coworking",
+      imageUrl: picsum("category-coworking", 1200, 675),
       subCategories: {
         create: [
           { name: "Salle de réunion", defaultDurationMin: 60 },
@@ -165,6 +175,8 @@ async function main() {
       packId: packGold.id,
       isVerified: true,
       courts: ["Court 1", "Court 2", "Court 3"],
+      logo: picsum("partner-paris-padel-club-logo", 256, 256),
+      coverImage: picsum("partner-paris-padel-club-cover", 1600, 900),
     },
     {
       email: "info@padelolympia.fr",
@@ -177,6 +189,8 @@ async function main() {
       packId: packPlatinum.id,
       isVerified: true,
       courts: ["Terra A", "Terra B", "Terra C", "Terra D"],
+      logo: picsum("partner-padel-olympia-logo", 256, 256),
+      coverImage: picsum("partner-padel-olympia-cover", 1600, 900),
     },
     {
       email: "bonjour@marseille-padel.fr",
@@ -189,6 +203,8 @@ async function main() {
       packId: packGold.id,
       isVerified: true,
       courts: ["Piste 1", "Piste 2"],
+      logo: picsum("partner-marseille-padel-logo", 256, 256),
+      coverImage: picsum("partner-marseille-padel-cover", 1600, 900),
     },
     {
       email: "hello@bordeaux-sport.fr",
@@ -201,6 +217,8 @@ async function main() {
       packId: packGold.id,
       isVerified: true,
       courts: ["Terrain Football", "Court Tennis A", "Court Tennis B"],
+      logo: picsum("partner-sport-center-bordeaux-logo", 256, 256),
+      coverImage: picsum("partner-sport-center-bordeaux-cover", 1600, 900),
     },
     {
       email: "contact@nantes-wellness.fr",
@@ -213,6 +231,8 @@ async function main() {
       packId: packSilver.id,
       isVerified: false,
       courts: ["Salle Yoga"],
+      logo: picsum("partner-zen-space-nantes-logo", 256, 256),
+      coverImage: picsum("partner-zen-space-nantes-cover", 1600, 900),
     },
     {
       email: "desk@cowork-lille.fr",
@@ -225,6 +245,8 @@ async function main() {
       packId: packGold.id,
       isVerified: true,
       courts: ["Salle Panorama", "Salle Innovation"],
+      logo: picsum("partner-cowork-lille-logo", 256, 256),
+      coverImage: picsum("partner-cowork-lille-cover", 1600, 900),
     },
     {
       email: "padel@nice-riviera.fr",
@@ -237,6 +259,8 @@ async function main() {
       packId: packPlatinum.id,
       isVerified: true,
       courts: ["Court Azur 1", "Court Azur 2", "Court Azur 3"],
+      logo: picsum("partner-padel-riviera-nice-logo", 256, 256),
+      coverImage: picsum("partner-padel-riviera-nice-cover", 1600, 900),
     },
     {
       email: "info@strasbourg-padel.fr",
@@ -249,6 +273,8 @@ async function main() {
       packId: packSilver.id,
       isVerified: false,
       courts: ["Court 1"],
+      logo: picsum("partner-alsace-padel-club-logo", 256, 256),
+      coverImage: picsum("partner-alsace-padel-club-cover", 1600, 900),
     },
   ];
 
@@ -297,6 +323,8 @@ async function main() {
         categoryId: p.categoryId,
         packId: p.packId,
         isVerified: p.isVerified,
+        logo: p.logo,
+        coverImage: p.coverImage,
       },
     });
 

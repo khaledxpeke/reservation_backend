@@ -19,6 +19,9 @@ const envSchema = z.object({
 
   SUPER_ADMIN_EMAIL: z.string().email().default('admin@padel.com'),
   SUPER_ADMIN_PASSWORD: z.string().min(6).default('Admin123!'),
+
+  /** Base URL for OpenAPI "Try it out" (include /api if you use a reverse proxy path). */
+  PUBLIC_API_URL: z.string().url().default('http://localhost:4000'),
 });
 
 const parsed = envSchema.safeParse(process.env);
