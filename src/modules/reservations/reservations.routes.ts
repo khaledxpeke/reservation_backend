@@ -12,6 +12,14 @@ import {
 
 const router = Router();
 
+router.get(
+  '/',
+  authenticate,
+  authorize('SUPER_ADMIN'),
+  validate({ query: listReservationsQuerySchema }),
+  reservationsController.listAdminReservations,
+);
+
 router.post('/', validate({ body: createReservationSchema }), reservationsController.createReservation);
 
 router.get(
@@ -35,6 +43,14 @@ router.get(
   authenticate,
   authorize('SUPER_ADMIN'),
   reservationsController.getAdminStats,
+);
+
+router.delete(
+  '/:id',
+  authenticate,
+  authorize('SUPER_ADMIN'),
+  validate({ params: reservationIdParamSchema }),
+  reservationsController.deleteReservation,
 );
 
 export default router;

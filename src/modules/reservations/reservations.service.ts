@@ -153,6 +153,52 @@ export async function updateReservationStatus(
   return updated;
 }
 
+export async function listAdminReservations(query: ListReservationsQuery) {
+  const where: Prisma.ReservationWhereInput = {};
+
+  if (query.status) where.status = query.status;
+  if (query.resourceId) where.resourceId = query.resourceId;
+  if (query.date) {
+    const dateStart = new Date(query.date);
+    dateStart.setUTCHours(0, 0, 0, 0);
+    const dateEnd = new Date(query.date);
+    dateEnd.setUTCHours(23, 59, 59, 999);
+    where.date = { gte: dateStart, lte: dateEnd };
+  }
+
+  const pagination: PaginationInput = { page: query.page, limit: query.limit };
+  const { skip, take } = paginate(pagination);
+
+  const [reservations, total] = await Promise.all([
+    prisma.reservation.findMany({
+      where,
+      include: { resource: { select: { name: true, partner: { select: { name: true } } } } },
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take,
+    }),
+    prisma.reservation.count({ where }),
+  ]);
+
+  return paginatedResponse(reservations, total, pagination);
+}
+
+export async function deleteReservation(id: string) {
+  const reservation = await prisma.reservation.findUnique({ where: { id } });
+  if (!reservation) throw new NotFoundError('Reservation');
+
+  const lockKey = slotLockKey(reservation.resourceId, reservation.date.toISOString().split('T')[0], reservation.startTime);
+  if (redis) {
+    try {
+      await redis.del(lockKey);
+    } catch {
+      // ignore
+    }
+  }
+
+  await prisma.reservation.delete({ where: { id } });
+}
+
 export async function getAdminStats() {
   const [totalBookings, pending, confirmed, rejected] = await Promise.all([
     prisma.reservation.count(),

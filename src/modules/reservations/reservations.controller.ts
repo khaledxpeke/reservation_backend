@@ -34,6 +34,24 @@ export async function updateReservationStatus(req: Request, res: Response, next:
   }
 }
 
+export async function listAdminReservations(req: Request, res: Response, next: NextFunction) {
+  try {
+    const data = await reservationsService.listAdminReservations(req.query as any);
+    res.json({ success: true, data });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function deleteReservation(req: Request, res: Response, next: NextFunction) {
+  try {
+    await reservationsService.deleteReservation(getParam(req, 'id'));
+    res.json({ success: true, data: { message: 'Reservation deleted' } });
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function getAdminStats(_req: Request, res: Response, next: NextFunction) {
   try {
     const data = await reservationsService.getAdminStats();

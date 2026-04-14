@@ -62,6 +62,8 @@ model Partner {
   /** Hero / banner image URL (HTTPS recommended) */
   coverImage String?
   city       String
+  /** Tunisia governorate (wilaya) or other region label for location filters */
+  governorate String?
   phone      String
   address    String?
   categoryId String
@@ -102,7 +104,8 @@ model SubCategory {
   /** Optional illustration URL (e.g. Cloudinary) */
   imageUrl           String?
 
-  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  category  Category   @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  resources Resource[]
 
   @@unique([categoryId, name])
   @@map("sub_categories")
@@ -114,10 +117,15 @@ model Resource {
   name      String
   capacity  Int     @default(1)
   isActive  Boolean @default(true)
+  /** Optional: links court to a sub-category (e.g. Padel indoor). */
+  subCategoryId String?
+  /** Price per hour for display / booking (same currency as packs). */
+  pricePerHour  Decimal? @db.Decimal(10, 2)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   partner        Partner         @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  subCategory    SubCategory?    @relation(fields: [subCategoryId], references: [id], onDelete: SetNull)
   availabilities Availability[]
   reservations   Reservation[]
 

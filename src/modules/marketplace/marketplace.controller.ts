@@ -19,3 +19,12 @@ export async function getPublicPartner(req: Request, res: Response, next: NextFu
     next(err);
   }
 }
+
+export async function searchCourtOffers(req: Request, res: Response, next: NextFunction) {
+  try {
+    const data = await marketplaceService.searchCourtOffers(req.query as any);
+    res.json({ success: true, data: { items: data } });
+  } catch (err) {
+    next(err);
+  }
+}

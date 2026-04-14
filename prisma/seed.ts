@@ -28,6 +28,20 @@ function dateStr(offsetDays: number): Date {
   return d;
 }
 
+type PadelCourtSub = "interior" | "exterior" | "covered";
+
+function padelSubCategoryId(
+  subs: { id: string; name: string }[],
+  t: PadelCourtSub,
+): string | undefined {
+  const label: Record<PadelCourtSub, string> = {
+    interior: "Padel intérieur",
+    exterior: "Padel extérieur",
+    covered: "Padel couvert",
+  };
+  return subs.find((s) => s.name === label[t])?.id;
+}
+
 // ─── main ───────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -102,54 +116,7 @@ async function main() {
     },
   });
 
-  const catSport = await prisma.category.create({
-    data: {
-      name: "Sport",
-      slug: "sport",
-      imageUrl: picsum("category-sport", 1200, 675),
-      subCategories: {
-        create: [
-          { name: "Football", defaultDurationMin: 60 },
-          { name: "Tennis", defaultDurationMin: 60 },
-          { name: "Squash", defaultDurationMin: 45 },
-          { name: "Badminton", defaultDurationMin: 60 },
-        ],
-      },
-    },
-  });
-
-  const catWellness = await prisma.category.create({
-    data: {
-      name: "Bien-être",
-      slug: "bien-etre",
-      imageUrl: picsum("category-bien-etre", 1200, 675),
-      subCategories: {
-        create: [
-          { name: "Yoga", defaultDurationMin: 60 },
-          { name: "Pilates", defaultDurationMin: 45 },
-          { name: "Méditation", defaultDurationMin: 30 },
-        ],
-      },
-    },
-  });
-
-  const catCoworking = await prisma.category.create({
-    data: {
-      name: "Coworking",
-      slug: "coworking",
-      imageUrl: picsum("category-coworking", 1200, 675),
-      subCategories: {
-        create: [
-          { name: "Salle de réunion", defaultDurationMin: 60 },
-          { name: "Bureau individuel", defaultDurationMin: 120 },
-        ],
-      },
-    },
-  });
-
-  console.log(
-    `✓  Catégories : ${[catPadel, catSport, catWellness, catCoworking].map((c) => c.name).join(", ")}`
-  );
+  console.log(`✓  Catégories : ${catPadel.name}`);
 
   // ── 3. Super Admin ────────────────────────────────────────────────────────
   await prisma.user.create({
@@ -162,119 +129,133 @@ async function main() {
   });
   console.log("✓  Admin : admin@padel.com  /  Admin123!");
 
-  // ── 4. Partners ───────────────────────────────────────────────────────────
+  // ── 4. Partners (Djerba — Médenine) ────────────────────────────────────────
+  const padelSubList = await prisma.subCategory.findMany({
+    where: { categoryId: catPadel.id },
+  });
+
   const partnersData = [
     {
-      email: "contact@padelclub-paris.fr",
+      email: "contact@bourgo-arena.djerba.tn",
       password: "Partner123!",
-      name: "Paris Padel Club",
-      city: "Paris",
-      phone: "+33 1 40 00 01 01",
-      address: "15 avenue des Sports, 75008 Paris",
-      categoryId: catPadel.id,
-      packId: packGold.id,
-      isVerified: true,
-      courts: ["Court 1", "Court 2", "Court 3"],
-      logo: picsum("partner-paris-padel-club-logo", 256, 256),
-      coverImage: picsum("partner-paris-padel-club-cover", 1600, 900),
-    },
-    {
-      email: "info@padelolympia.fr",
-      password: "Partner123!",
-      name: "Padel Olympia",
-      city: "Lyon",
-      phone: "+33 4 72 00 02 02",
-      address: "8 rue des Champions, 69003 Lyon",
+      name: "Bourgo Arena Padel Djerba",
+      city: "Midoun",
+      governorate: "Médenine",
+      phone: "+216 75 123 001",
+      address: "Inside Bourgo Mall, Midoun, Djerba",
       categoryId: catPadel.id,
       packId: packPlatinum.id,
       isVerified: true,
-      courts: ["Terra A", "Terra B", "Terra C", "Terra D"],
-      logo: picsum("partner-padel-olympia-logo", 256, 256),
-      coverImage: picsum("partner-padel-olympia-cover", 1600, 900),
+      description:
+        "A premier indoor sports complex featuring two latest-generation indoor padel courts. Known for its high ceilings and professional LED lighting, it offers a premium experience regardless of weather.",
+      keyFeatures: [
+        "2 Indoor Courts",
+        "Professional Coaching",
+        "Racket Rental",
+        "Changing Rooms",
+      ],
+      courts: [
+        { name: "Court Indoor 1", subType: "interior" as const },
+        { name: "Court Indoor 2", subType: "interior" as const },
+      ],
+      logo: picsum("bourgo-arena-padel-djerba-logo", 256, 256),
+      coverImage: picsum("bourgo-arena-padel-djerba-cover", 1600, 900),
     },
     {
-      email: "bonjour@marseille-padel.fr",
+      email: "padel@radisson-djerba.tn",
       password: "Partner123!",
-      name: "Marseille Padel",
-      city: "Marseille",
-      phone: "+33 4 91 00 03 03",
-      address: "22 boulevard Michelet, 13008 Marseille",
+      name: "Padel Club Djerba Radisson",
+      city: "Houmt Souk",
+      governorate: "Médenine",
+      phone: "+216 75 123 002",
+      address: "Zone Touristique, Houmt Souk, Djerba (Radisson Blu Palace Resort)",
       categoryId: catPadel.id,
       packId: packGold.id,
       isVerified: true,
-      courts: ["Piste 1", "Piste 2"],
-      logo: picsum("partner-marseille-padel-logo", 256, 256),
-      coverImage: picsum("partner-marseille-padel-cover", 1600, 900),
+      description:
+        "Located within the prestigious Radisson Blu Palace Resort, this club offers outdoor courts with a luxury resort vibe. Ideal for those who enjoy playing near the sea with access to high-end hotel amenities.",
+      keyFeatures: ["3 Outdoor Courts", "Resort Access", "Parking", "High-end Infrastructure"],
+      courts: [
+        { name: "Court Outdoor 1", subType: "exterior" as const },
+        { name: "Court Outdoor 2", subType: "exterior" as const },
+        { name: "Court Outdoor 3", subType: "exterior" as const },
+      ],
+      logo: picsum("radisson-padel-club-djerba-logo", 256, 256),
+      coverImage: picsum("radisson-padel-club-djerba-cover", 1600, 900),
     },
     {
-      email: "hello@bordeaux-sport.fr",
+      email: "padel@clubmed-djerba.tn",
       password: "Partner123!",
-      name: "Sport Center Bordeaux",
-      city: "Bordeaux",
-      phone: "+33 5 56 00 04 04",
-      address: "5 cours de l'Intendance, 33000 Bordeaux",
-      categoryId: catSport.id,
+      name: "Club Med Padel Center",
+      city: "Midoun",
+      governorate: "Médenine",
+      phone: "+216 75 123 003",
+      address: "Club Med Djerba La Douce, Midoun, Djerba",
+      categoryId: catPadel.id,
       packId: packGold.id,
       isVerified: true,
-      courts: ["Terrain Football", "Court Tennis A", "Court Tennis B"],
-      logo: picsum("partner-sport-center-bordeaux-logo", 256, 256),
-      coverImage: picsum("partner-sport-center-bordeaux-cover", 1600, 900),
+      description:
+        "Part of the Club Med complex, this center offers a friendly and social atmosphere. While often reserved for residents, it frequently hosts tournaments and open sessions for the local padel community.",
+      keyFeatures: ["Multiple Courts", "Social Environment", "Tourist-friendly"],
+      courts: [
+        { name: "Court Central 1", subType: "exterior" as const },
+        { name: "Court Central 2", subType: "exterior" as const },
+        { name: "Court Central 3", subType: "covered" as const },
+      ],
+      logo: picsum("club-med-padel-center-djerba-logo", 256, 256),
+      coverImage: picsum("club-med-padel-center-djerba-cover", 1600, 900),
     },
     {
-      email: "contact@nantes-wellness.fr",
+      email: "contact@countryclub-djerba.tn",
       password: "Partner123!",
-      name: "Zen Space Nantes",
-      city: "Nantes",
-      phone: "+33 2 40 00 05 05",
-      address: "12 rue du Bien-être, 44000 Nantes",
-      categoryId: catWellness.id,
+      name: "Country Club Padel Djerba",
+      city: "Houmt Souk",
+      governorate: "Médenine",
+      phone: "+216 75 123 004",
+      address: "Route de Houmt Souk, Djerba",
+      categoryId: catPadel.id,
+      packId: packGold.id,
+      isVerified: true,
+      description:
+        "A vibrant sports hub known for its community atmosphere and well-maintained courts. It is a favorite for local players and expats, offering a mix of competitive play and social events. The club is recognized for its high-quality synthetic turf and professional lighting for night sessions.",
+      keyFeatures: [
+        "2 Outdoor Panorama Courts",
+        "Social Lounge/Cafe",
+        "Equipment Shop",
+        "Night Lighting",
+      ],
+      courts: [
+        { name: "Court Panorama 1", subType: "exterior" as const },
+        { name: "Court Panorama 2", subType: "exterior" as const },
+      ],
+      logo: picsum("country-club-padel-djerba-logo", 256, 256),
+      coverImage: picsum("country-club-padel-djerba-cover", 1600, 900),
+    },
+    {
+      email: "contact@padel-sidisalem.tn",
+      password: "Partner123!",
+      name: "Padel Sidi Salem - Sassi Stadium",
+      city: "Houmt Souk",
+      governorate: "Médenine",
+      phone: "+216 75 123 005",
+      address: "Sidi Salem Beach Area, Houmt Souk, Djerba",
+      categoryId: catPadel.id,
       packId: packSilver.id,
-      isVerified: false,
-      courts: ["Salle Yoga"],
-      logo: picsum("partner-zen-space-nantes-logo", 256, 256),
-      coverImage: picsum("partner-zen-space-nantes-cover", 1600, 900),
-    },
-    {
-      email: "desk@cowork-lille.fr",
-      password: "Partner123!",
-      name: "CoWork Lille",
-      city: "Lille",
-      phone: "+33 3 20 00 06 06",
-      address: "3 place du Général de Gaulle, 59000 Lille",
-      categoryId: catCoworking.id,
-      packId: packGold.id,
       isVerified: true,
-      courts: ["Salle Panorama", "Salle Innovation"],
-      logo: picsum("partner-cowork-lille-logo", 256, 256),
-      coverImage: picsum("partner-cowork-lille-cover", 1600, 900),
-    },
-    {
-      email: "padel@nice-riviera.fr",
-      password: "Partner123!",
-      name: "Padel Riviera Nice",
-      city: "Nice",
-      phone: "+33 4 93 00 07 07",
-      address: "1 promenade des Sports, 06000 Nice",
-      categoryId: catPadel.id,
-      packId: packPlatinum.id,
-      isVerified: true,
-      courts: ["Court Azur 1", "Court Azur 2", "Court Azur 3"],
-      logo: picsum("partner-padel-riviera-nice-logo", 256, 256),
-      coverImage: picsum("partner-padel-riviera-nice-cover", 1600, 900),
-    },
-    {
-      email: "info@strasbourg-padel.fr",
-      password: "Partner123!",
-      name: "Alsace Padel Club",
-      city: "Strasbourg",
-      phone: "+33 3 88 00 08 08",
-      address: "7 route du Rhin, 67000 Strasbourg",
-      categoryId: catPadel.id,
-      packId: packSilver.id,
-      isVerified: false,
-      courts: ["Court 1"],
-      logo: picsum("partner-alsace-padel-club-logo", 256, 256),
-      coverImage: picsum("partner-alsace-padel-club-cover", 1600, 900),
+      description:
+        'Part of a larger multi-sport complex, this facility offers a unique playing experience near the scenic Sidi Salem coast. It is highly rated for its "fair-play" philosophy and modern infrastructure. It often hosts "Padel Prestige" sessions and local tournaments.',
+      keyFeatures: [
+        "2 High-Spec Outdoor Courts",
+        "Multi-sport facilities (Football/Tennis nearby)",
+        "Changing Rooms",
+        "Beach Proximity",
+      ],
+      courts: [
+        { name: "Court Sassi 1", subType: "exterior" as const },
+        { name: "Court Sassi 2", subType: "exterior" as const },
+      ],
+      logo: picsum("padel-sidi-salem-sassi-stadium-logo", 256, 256),
+      coverImage: picsum("padel-sidi-salem-sassi-stadium-cover", 1600, 900),
     },
   ];
 
@@ -287,18 +268,6 @@ async function main() {
     "FRIDAY",
     "SATURDAY",
     "SUNDAY",
-  ];
-
-  // Weekend only
-  const weekendDays: DayOfWeek[] = ["SATURDAY", "SUNDAY"];
-
-  // Weekdays only
-  const weekDays: DayOfWeek[] = [
-    "MONDAY",
-    "TUESDAY",
-    "WEDNESDAY",
-    "THURSDAY",
-    "FRIDAY",
   ];
 
   const createdPartners = [];
@@ -318,6 +287,7 @@ async function main() {
         userId: user.id,
         name: p.name,
         city: p.city,
+        governorate: p.governorate,
         phone: p.phone,
         address: p.address,
         categoryId: p.categoryId,
@@ -325,44 +295,40 @@ async function main() {
         isVerified: p.isVerified,
         logo: p.logo,
         coverImage: p.coverImage,
+        settings: {
+          description: p.description,
+          keyFeatures: p.keyFeatures,
+        },
       },
     });
 
-    // Create resources (courts/rooms)
+    // Create resources (courts) with padel sub-category + hourly price
     const resources = await Promise.all(
-      p.courts.map((courtName) =>
-        prisma.resource.create({
+      p.courts.map((court, i) => {
+        const subId = padelSubCategoryId(padelSubList, court.subType);
+        return prisma.resource.create({
           data: {
             partnerId: partner.id,
-            name: courtName,
-            capacity: courtName.toLowerCase().includes("réunion") ? 12 : 4,
+            name: court.name,
+            capacity: 4,
             isActive: true,
+            subCategoryId: subId,
+            pricePerHour: 100, // Base price for Djerba courts
           },
-        })
-      )
+        });
+      }),
     );
 
-    // Set availabilities for each resource
+    // Availabilities — all days for padel clubs
     for (const resource of resources) {
-      // Coworking & wellness: weekdays only; sport: all days; padel: all days
-      const days =
-        p.categoryId === catCoworking.id
-          ? weekDays
-          : p.categoryId === catWellness.id
-          ? allDays
-          : allDays;
-
-      const isWeekend = (d: DayOfWeek) =>
-        d === "SATURDAY" || d === "SUNDAY";
-
-      for (const day of days) {
+      for (const day of allDays) {
         await prisma.availability.create({
           data: {
             resourceId: resource.id,
             dayOfWeek: day,
-            startTime: isWeekend(day) ? "08:00" : "09:00",
-            endTime: isWeekend(day) ? "22:00" : "21:00",
-            slotIntervalMin: 90,
+            startTime: "08:00",
+            endTime: "23:00",
+            slotIntervalMin: 60,
           },
         });
       }
@@ -376,21 +342,19 @@ async function main() {
 
   // ── 5. Reservations ───────────────────────────────────────────────────────
   const reservationsToCreate = [
-    // Confirmed past
-    { partnerIdx: 0, resourceIdx: 0, offsetDays: -5, start: "10:00", end: "11:30", status: ReservationStatus.CONFIRMED, name: "Jean Dupont", phone: "+33 6 11 11 11 11", email: "jean.dupont@email.fr" },
-    { partnerIdx: 0, resourceIdx: 1, offsetDays: -3, start: "14:00", end: "15:30", status: ReservationStatus.CONFIRMED, name: "Marie Curie", phone: "+33 6 22 22 22 22", email: "marie@email.fr" },
-    { partnerIdx: 1, resourceIdx: 0, offsetDays: -7, start: "09:00", end: "10:30", status: ReservationStatus.CONFIRMED, name: "Pierre Martin", phone: "+33 6 33 33 33 33", email: "pierre@email.fr" },
-    { partnerIdx: 1, resourceIdx: 1, offsetDays: -2, start: "16:00", end: "17:30", status: ReservationStatus.REJECTED, name: "Sophie Bernard", phone: "+33 6 44 44 44 44", email: null },
-    // Pending (today + future)
-    { partnerIdx: 0, resourceIdx: 0, offsetDays: 1, start: "11:00", end: "12:30", status: ReservationStatus.PENDING, name: "Lucas Petit", phone: "+33 6 55 55 55 55", email: "lucas@email.fr" },
-    { partnerIdx: 0, resourceIdx: 2, offsetDays: 2, start: "14:00", end: "15:30", status: ReservationStatus.PENDING, name: "Emma Blanc", phone: "+33 6 66 66 66 66", email: "emma@email.fr" },
-    { partnerIdx: 1, resourceIdx: 0, offsetDays: 1, start: "10:00", end: "11:30", status: ReservationStatus.CONFIRMED, name: "Hugo Thomas", phone: "+33 6 77 77 77 77", email: null },
-    { partnerIdx: 2, resourceIdx: 0, offsetDays: 3, start: "09:00", end: "10:30", status: ReservationStatus.PENDING, name: "Camille Leroy", phone: "+33 6 88 88 88 88", email: "camille@email.fr" },
-    { partnerIdx: 3, resourceIdx: 0, offsetDays: 2, start: "18:00", end: "19:00", status: ReservationStatus.CONFIRMED, name: "Antoine Durand", phone: "+33 6 99 99 99 99", email: null },
-    { partnerIdx: 5, resourceIdx: 0, offsetDays: 1, start: "09:00", end: "10:00", status: ReservationStatus.PENDING, name: "Julie Moreau", phone: "+33 6 10 10 10 10", email: "julie@email.fr" },
-    { partnerIdx: 6, resourceIdx: 0, offsetDays: 4, start: "12:00", end: "13:30", status: ReservationStatus.PENDING, name: "Nicolas Simon", phone: "+33 6 12 12 12 12", email: "nicolas@email.fr" },
-    { partnerIdx: 6, resourceIdx: 1, offsetDays: 5, start: "15:00", end: "16:30", status: ReservationStatus.CONFIRMED, name: "Isabelle Laurent", phone: "+33 6 13 13 13 13", email: "isa@email.fr" },
-    { partnerIdx: 0, resourceIdx: 0, offsetDays: -1, start: "09:00", end: "10:30", status: ReservationStatus.CANCELLED, name: "Marc Dupuis", phone: "+33 6 14 14 14 14", email: null },
+    { partnerIdx: 0, resourceIdx: 0, offsetDays: -5, start: "10:00", end: "11:30", status: ReservationStatus.CONFIRMED, name: "Amine Ben Salah", phone: "+216 98 111 111", email: "amine@email.tn" },
+    { partnerIdx: 0, resourceIdx: 1, offsetDays: -3, start: "14:00", end: "15:30", status: ReservationStatus.CONFIRMED, name: "Sarra Trabelsi", phone: "+216 98 222 222", email: "sarra@email.tn" },
+    { partnerIdx: 1, resourceIdx: 0, offsetDays: -7, start: "09:00", end: "10:30", status: ReservationStatus.CONFIRMED, name: "Karim Jlassi", phone: "+216 98 333 333", email: "karim@email.tn" },
+    { partnerIdx: 1, resourceIdx: 1, offsetDays: -2, start: "16:00", end: "17:30", status: ReservationStatus.REJECTED, name: "Leïla Mzoughi", phone: "+216 98 444 444", email: null },
+    { partnerIdx: 0, resourceIdx: 0, offsetDays: 1, start: "11:00", end: "12:30", status: ReservationStatus.PENDING, name: "Omar Khelil", phone: "+216 98 555 555", email: "omar@email.tn" },
+    { partnerIdx: 1, resourceIdx: 2, offsetDays: 2, start: "14:00", end: "15:30", status: ReservationStatus.PENDING, name: "Inès Bouazizi", phone: "+216 98 666 666", email: "ines@email.tn" },
+    { partnerIdx: 2, resourceIdx: 0, offsetDays: 1, start: "10:00", end: "11:30", status: ReservationStatus.CONFIRMED, name: "Hedi Ayari", phone: "+216 98 777 777", email: null },
+    { partnerIdx: 2, resourceIdx: 1, offsetDays: 3, start: "09:00", end: "10:30", status: ReservationStatus.PENDING, name: "Maram Sassi", phone: "+216 98 888 888", email: "maram@email.tn" },
+    { partnerIdx: 3, resourceIdx: 0, offsetDays: 2, start: "18:00", end: "19:00", status: ReservationStatus.CONFIRMED, name: "Youssef Dhouib", phone: "+216 98 999 999", email: null },
+    { partnerIdx: 4, resourceIdx: 0, offsetDays: 1, start: "09:00", end: "10:00", status: ReservationStatus.PENDING, name: "Nour Guiga", phone: "+216 97 101 010", email: "nour@email.tn" },
+    { partnerIdx: 4, resourceIdx: 1, offsetDays: 4, start: "12:00", end: "13:30", status: ReservationStatus.PENDING, name: "Selim Rekik", phone: "+216 97 121 212", email: "selim@email.tn" },
+    { partnerIdx: 3, resourceIdx: 1, offsetDays: 5, start: "15:00", end: "16:30", status: ReservationStatus.CONFIRMED, name: "Dorra Ben Ammar", phone: "+216 97 131 313", email: "dorra@email.tn" },
+    { partnerIdx: 0, resourceIdx: 0, offsetDays: -1, start: "09:00", end: "10:30", status: ReservationStatus.CANCELLED, name: "Fares Haddad", phone: "+216 97 141 414", email: null },
   ];
 
   for (const r of reservationsToCreate) {
@@ -417,17 +381,17 @@ async function main() {
   const offersData = [
     {
       partnerIdx: 0,
-      title: "Happy Hour Padel",
-      description: "50% de réduction sur tous les créneaux de 9h à 12h en semaine.",
-      discountPercent: 50,
+      title: "Happy Hour Matinal",
+      description: "De 8h à 12h, le terrain est à seulement 40 DT / heure !",
+      discountPercent: 60,
       validFrom: dateStr(-2),
       validUntil: dateStr(30),
       approvalStatus: ApprovalStatus.APPROVED,
     },
     {
       partnerIdx: 1,
-      title: "Weekend Promo",
-      description: "20% de réduction sur les réservations du weekend. Offre limitée.",
+      title: "Offre Après-Midi",
+      description: "De 12h à 17h, profitez du terrain pour 80 DT / heure.",
       discountPercent: 20,
       validFrom: dateStr(0),
       validUntil: dateStr(14),
@@ -435,48 +399,30 @@ async function main() {
     },
     {
       partnerIdx: 2,
-      title: "Été Padel",
-      description: "Profitez de l'été avec 15% de réduction sur tous nos terrains.",
-      discountPercent: 15,
+      title: "Matinée Padel",
+      description: "Votre session du matin (8h-12h) est à 40 DT / heure.",
+      discountPercent: 60,
       validFrom: dateStr(-7),
       validUntil: dateStr(60),
       approvalStatus: ApprovalStatus.APPROVED,
     },
     {
       partnerIdx: 3,
-      title: "Formule Soirée Sport",
-      description: "30% sur les créneaux après 19h du lundi au vendredi.",
-      discountPercent: 30,
+      title: "Créneaux Creux",
+      description: "Réservez entre 12h et 17h et payez 80 DT au lieu de 100 DT.",
+      discountPercent: 20,
       validFrom: dateStr(0),
       validUntil: dateStr(21),
-      approvalStatus: ApprovalStatus.PENDING,
-    },
-    {
-      partnerIdx: 6,
-      title: "Côte d'Azur Summer",
-      description: "25% de réduction pour découvrir nos courts en bord de mer.",
-      discountPercent: 25,
-      validFrom: dateStr(-3),
-      validUntil: dateStr(45),
       approvalStatus: ApprovalStatus.APPROVED,
     },
     {
-      partnerIdx: 5,
-      title: "Séminaire d'entreprise",
-      description: "Réservez une salle pour votre équipe et bénéficiez de 10% de réduction.",
-      discountPercent: 10,
-      validFrom: dateStr(0),
-      validUntil: dateStr(90),
-      approvalStatus: ApprovalStatus.PENDING,
-    },
-    {
-      partnerIdx: 7,
-      title: "Ouverture Alsace",
-      description: "Pour notre ouverture, 40% sur tous les créneaux ce mois-ci.",
-      discountPercent: 40,
-      validFrom: dateStr(-1),
-      validUntil: dateStr(30),
-      approvalStatus: ApprovalStatus.REJECTED,
+      partnerIdx: 4,
+      title: "Padel Prestige Matin",
+      description: "Les terrains sont à 40 DT de 8h à 12h. Profitez-en !",
+      discountPercent: 60,
+      validFrom: dateStr(-3),
+      validUntil: dateStr(45),
+      approvalStatus: ApprovalStatus.APPROVED,
     },
   ];
 
@@ -504,17 +450,12 @@ async function main() {
 ║  Admin      admin@padel.com / Admin123!       ║
 ║  Partenaires  Partner123! (mot de passe)      ║
 ╠═══════════════════════════════════════════════╣
-║  Partenaires vérifiés                         ║
-║    Paris Padel Club   contact@padelclub-paris.fr  ║
-║    Padel Olympia      info@padelolympia.fr    ║
-║    Marseille Padel    bonjour@marseille-padel.fr ║
-║    Sport Center BDX   hello@bordeaux-sport.fr ║
-║    CoWork Lille       desk@cowork-lille.fr    ║
-║    Padel Riviera Nice padel@nice-riviera.fr   ║
-╠═══════════════════════════════════════════════╣
-║  En attente vérification                      ║
-║    Zen Space Nantes   contact@nantes-wellness.fr ║
-║    Alsace Padel Club  info@strasbourg-padel.fr║
+║  Djerba (Médenine) — 5 clubs                  ║
+║    Bourgo Arena Padel   contact@bourgo-arena.djerba.tn ║
+║    Radisson Padel       padel@radisson-djerba.tn ║
+║    Club Med Padel       padel@clubmed-djerba.tn ║
+║    Country Club Padel   contact@countryclub-djerba.tn ║
+║    Padel Sidi Salem     contact@padel-sidisalem.tn ║
 ╚═══════════════════════════════════════════════╝
 `);
 }
