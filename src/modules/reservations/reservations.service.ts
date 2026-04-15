@@ -37,19 +37,50 @@ export async function createReservation(input: CreateReservationInput) {
 
   const dateStart = new Date(input.date);
   dateStart.setUTCHours(0, 0, 0, 0);
-  const dateEnd = new Date(input.date);
+  const endDateToUse = input.endDate ? new Date(input.endDate) : new Date(input.date);
+  const dateEnd = new Date(endDateToUse);
   dateEnd.setUTCHours(23, 59, 59, 999);
 
-  const conflicting = await prisma.reservation.findFirst({
-    where: {
-      resourceId: input.resourceId,
-      date: { gte: dateStart, lte: dateEnd },
-      status: { in: ['PENDING', 'CONFIRMED'] },
-      OR: [
-        { startTime: { lt: input.endTime }, endTime: { gt: input.startTime } },
-      ],
-    },
-  });
+  let conflicting;
+  if (input.endDate && input.endDate !== input.date) {
+    // Booking a date range
+    conflicting = await prisma.reservation.findFirst({
+      where: {
+        resourceId: input.resourceId,
+        status: { in: ['PENDING', 'CONFIRMED'] },
+        OR: [
+          {
+            date: { lte: dateEnd },
+            endDate: { gte: dateStart },
+          },
+          {
+            endDate: null,
+            date: { gte: dateStart, lte: dateEnd },
+          }
+        ],
+      },
+    });
+  } else {
+    // Booking a single time slot
+    conflicting = await prisma.reservation.findFirst({
+      where: {
+        resourceId: input.resourceId,
+        status: { in: ['PENDING', 'CONFIRMED'] },
+        OR: [
+          {
+            date: { lte: dateStart },
+            endDate: { gte: dateStart },
+          },
+          {
+            endDate: null,
+            date: { gte: dateStart, lte: dateEnd },
+            startTime: { lt: input.endTime },
+            endTime: { gt: input.startTime },
+          }
+        ],
+      },
+    });
+  }
 
   if (conflicting) {
     if (redis && lockHeld) {
@@ -69,6 +100,7 @@ export async function createReservation(input: CreateReservationInput) {
       guestPhone: input.guestPhone,
       guestEmail: input.guestEmail,
       date: new Date(input.date),
+      endDate: input.endDate ? new Date(input.endDate) : null,
       startTime: input.startTime,
       endTime: input.endTime,
       status: 'PENDING',

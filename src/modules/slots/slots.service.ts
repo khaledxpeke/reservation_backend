@@ -51,6 +51,7 @@ export async function getAvailableSlots(query: AvailableSlotsQuery) {
     })),
     reservations,
     query.durationMin,
+    resource.bufferTimeMin
   );
 
   return { date: query.date, dayOfWeek, slots };

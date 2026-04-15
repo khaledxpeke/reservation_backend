@@ -5,6 +5,8 @@ import {
   DayOfWeek,
   ReservationStatus,
   ApprovalStatus,
+  CategoryType,
+  BookingUnit
 } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
@@ -26,20 +28,6 @@ function dateStr(offsetDays: number): Date {
   d.setDate(d.getDate() + offsetDays);
   d.setHours(0, 0, 0, 0);
   return d;
-}
-
-type PadelCourtSub = "interior" | "exterior" | "covered";
-
-function padelSubCategoryId(
-  subs: { id: string; name: string }[],
-  t: PadelCourtSub,
-): string | undefined {
-  const label: Record<PadelCourtSub, string> = {
-    interior: "Padel intérieur",
-    exterior: "Padel extérieur",
-    covered: "Padel couvert",
-  };
-  return subs.find((s) => s.name === label[t])?.id;
 }
 
 // ─── main ───────────────────────────────────────────────────────────────────
@@ -101,161 +89,173 @@ async function main() {
   console.log("✓  Packs : Silver / Gold / Platinum");
 
   // ── 2. Categories & sub-categories ───────────────────────────────────────
-  const catPadel = await prisma.category.create({
+  const catCoworking = await prisma.category.create({
     data: {
-      name: "Padel",
-      slug: "padel",
-      imageUrl: picsum("category-padel", 1200, 675),
+      name: "Espaces de Travail",
+      slug: "coworking",
+      imageUrl: picsum("category-coworking", 1200, 675),
       subCategories: {
         create: [
-          { name: "Padel extérieur", defaultDurationMin: 90 },
-          { name: "Padel intérieur", defaultDurationMin: 90 },
-          { name: "Padel couvert", defaultDurationMin: 60 },
+          { name: "Salle de réunion", defaultDurationMin: 60 },
+          { name: "Bureau privé", defaultDurationMin: 240 },
+          { name: "Open space", defaultDurationMin: 240 },
         ],
       },
     },
   });
 
-  console.log(`✓  Catégories : ${catPadel.name}`);
+  const catVehicles = await prisma.category.create({
+    data: {
+      name: "Location de Véhicules",
+      slug: "vehicules",
+      imageUrl: picsum("category-vehicles", 1200, 675),
+      subCategories: {
+        create: [
+          { name: "Voiture", defaultDurationMin: 1440 }, // 1 day
+          { name: "Quad", defaultDurationMin: 120 },
+          { name: "Scooter", defaultDurationMin: 1440 },
+        ],
+      },
+    },
+  });
+
+  const catWellness = await prisma.category.create({
+    data: {
+      name: "Bien-être & Spa",
+      slug: "bien-etre",
+      imageUrl: picsum("category-wellness", 1200, 675),
+      subCategories: {
+        create: [
+          { name: "Massage", defaultDurationMin: 60 },
+          { name: "Hammam", defaultDurationMin: 60 },
+          { name: "Soin du visage", defaultDurationMin: 30 },
+        ],
+      },
+    },
+  });
+
+  console.log(`✓  Catégories créées`);
 
   // ── 3. Super Admin ────────────────────────────────────────────────────────
   await prisma.user.create({
     data: {
-      email: "admin@padel.com",
+      email: "admin@reservation.com",
       password: await hash("Admin123!"),
       role: UserRole.SUPER_ADMIN,
       status: UserStatus.ACTIVE,
     },
   });
-  console.log("✓  Admin : admin@padel.com  /  Admin123!");
+  console.log("✓  Admin : admin@reservation.com  /  Admin123!");
 
   // ── 4. Partners (Djerba — Médenine) ────────────────────────────────────────
-  const padelSubList = await prisma.subCategory.findMany({
-    where: { categoryId: catPadel.id },
-  });
+  const coworkingSubList = await prisma.subCategory.findMany({ where: { categoryId: catCoworking.id } });
+  const vehiclesSubList = await prisma.subCategory.findMany({ where: { categoryId: catVehicles.id } });
+  const wellnessSubList = await prisma.subCategory.findMany({ where: { categoryId: catWellness.id } });
+
+  const getSubId = (list: {id: string, name: string}[], name: string) => list.find(s => s.name === name)?.id;
 
   const partnersData = [
     {
-      email: "contact@bourgo-arena.djerba.tn",
+      email: "contact@coworking-djerba.tn",
       password: "Partner123!",
-      name: "Bourgo Arena Padel Djerba",
+      name: "Djerba Coworking Hub",
       city: "Midoun",
       governorate: "Médenine",
       phone: "+216 75 123 001",
-      address: "Inside Bourgo Mall, Midoun, Djerba",
-      categoryId: catPadel.id,
+      address: "Centre Ville, Midoun, Djerba",
+      categoryId: catCoworking.id,
       packId: packPlatinum.id,
       isVerified: true,
-      description:
-        "A premier indoor sports complex featuring two latest-generation indoor padel courts. Known for its high ceilings and professional LED lighting, it offers a premium experience regardless of weather.",
-      keyFeatures: [
-        "2 Indoor Courts",
-        "Professional Coaching",
-        "Racket Rental",
-        "Changing Rooms",
+      description: "L'espace de coworking idéal pour les nomades numériques et les entreprises locales. Connexion fibre optique, café gratuit et espaces climatisés.",
+      keyFeatures: ["Fibre Optique", "Salles climatisées", "Café gratuit"],
+      resourcesData: [
+        { name: "Salle de réunion (6 pers.)", subId: getSubId(coworkingSubList, "Salle de réunion"), categoryType: CategoryType.SPACE, bookingUnit: BookingUnit.HOURS, price: 30 },
+        { name: "Bureau Privé A", subId: getSubId(coworkingSubList, "Bureau privé"), categoryType: CategoryType.SPACE, bookingUnit: BookingUnit.DAYS, price: 80 },
+        { name: "Pass Open Space", subId: getSubId(coworkingSubList, "Open space"), categoryType: CategoryType.SERVICE, bookingUnit: BookingUnit.DAYS, price: 20 },
       ],
-      courts: [
-        { name: "Court Indoor 1", subType: "interior" as const },
-        { name: "Court Indoor 2", subType: "interior" as const },
-      ],
-      logo: picsum("bourgo-arena-padel-djerba-logo", 256, 256),
-      coverImage: picsum("bourgo-arena-padel-djerba-cover", 1600, 900),
+      logo: picsum("coworking-djerba-logo", 256, 256),
+      coverImage: picsum("coworking-djerba-cover", 1600, 900),
     },
     {
-      email: "padel@radisson-djerba.tn",
+      email: "resa@djerba-rentacar.tn",
       password: "Partner123!",
-      name: "Padel Club Djerba Radisson",
+      name: "Djerba Rent A Car",
       city: "Houmt Souk",
       governorate: "Médenine",
       phone: "+216 75 123 002",
-      address: "Zone Touristique, Houmt Souk, Djerba (Radisson Blu Palace Resort)",
-      categoryId: catPadel.id,
+      address: "Aéroport Djerba Zarzis",
+      categoryId: catVehicles.id,
       packId: packGold.id,
       isVerified: true,
-      description:
-        "Located within the prestigious Radisson Blu Palace Resort, this club offers outdoor courts with a luxury resort vibe. Ideal for those who enjoy playing near the sea with access to high-end hotel amenities.",
-      keyFeatures: ["3 Outdoor Courts", "Resort Access", "Parking", "High-end Infrastructure"],
-      courts: [
-        { name: "Court Outdoor 1", subType: "exterior" as const },
-        { name: "Court Outdoor 2", subType: "exterior" as const },
-        { name: "Court Outdoor 3", subType: "exterior" as const },
+      description: "Location de voitures et de scooters à des prix compétitifs. Explorez l'île de Djerba en toute liberté.",
+      keyFeatures: ["Kilométrage illimité", "Assurance tous risques", "Livraison à l'hôtel"],
+      resourcesData: [
+        { name: "Clio 5 - Manuelle", subId: getSubId(vehiclesSubList, "Voiture"), categoryType: CategoryType.ITEM, bookingUnit: BookingUnit.DAYS, price: 120 },
+        { name: "Polo 7 - Automatique", subId: getSubId(vehiclesSubList, "Voiture"), categoryType: CategoryType.ITEM, bookingUnit: BookingUnit.DAYS, price: 150 },
+        { name: "Scooter Vespa 50cc", subId: getSubId(vehiclesSubList, "Scooter"), categoryType: CategoryType.ITEM, bookingUnit: BookingUnit.DAYS, price: 60 },
       ],
-      logo: picsum("radisson-padel-club-djerba-logo", 256, 256),
-      coverImage: picsum("radisson-padel-club-djerba-cover", 1600, 900),
+      logo: picsum("rentacar-djerba-logo", 256, 256),
+      coverImage: picsum("rentacar-djerba-cover", 1600, 900),
     },
     {
-      email: "padel@clubmed-djerba.tn",
+      email: "spa@radisson-djerba.tn",
       password: "Partner123!",
-      name: "Club Med Padel Center",
-      city: "Midoun",
-      governorate: "Médenine",
-      phone: "+216 75 123 003",
-      address: "Club Med Djerba La Douce, Midoun, Djerba",
-      categoryId: catPadel.id,
-      packId: packGold.id,
-      isVerified: true,
-      description:
-        "Part of the Club Med complex, this center offers a friendly and social atmosphere. While often reserved for residents, it frequently hosts tournaments and open sessions for the local padel community.",
-      keyFeatures: ["Multiple Courts", "Social Environment", "Tourist-friendly"],
-      courts: [
-        { name: "Court Central 1", subType: "exterior" as const },
-        { name: "Court Central 2", subType: "exterior" as const },
-        { name: "Court Central 3", subType: "covered" as const },
-      ],
-      logo: picsum("club-med-padel-center-djerba-logo", 256, 256),
-      coverImage: picsum("club-med-padel-center-djerba-cover", 1600, 900),
-    },
-    {
-      email: "contact@countryclub-djerba.tn",
-      password: "Partner123!",
-      name: "Country Club Padel Djerba",
+      name: "Radisson Thalasso & Spa",
       city: "Houmt Souk",
       governorate: "Médenine",
-      phone: "+216 75 123 004",
-      address: "Route de Houmt Souk, Djerba",
-      categoryId: catPadel.id,
+      phone: "+216 75 123 003",
+      address: "Zone Touristique, Houmt Souk",
+      categoryId: catWellness.id,
       packId: packGold.id,
       isVerified: true,
-      description:
-        "A vibrant sports hub known for its community atmosphere and well-maintained courts. It is a favorite for local players and expats, offering a mix of competitive play and social events. The club is recognized for its high-quality synthetic turf and professional lighting for night sessions.",
-      keyFeatures: [
-        "2 Outdoor Panorama Courts",
-        "Social Lounge/Cafe",
-        "Equipment Shop",
-        "Night Lighting",
+      description: "Détendez-vous dans notre centre de thalassothérapie. Massages relaxants, hammam traditionnel et soins esthétiques.",
+      keyFeatures: ["Piscine à l'eau de mer", "Produits naturels", "Thérapeutes certifiés"],
+      resourcesData: [
+        { name: "Massage Relaxant (1h)", subId: getSubId(wellnessSubList, "Massage"), categoryType: CategoryType.SERVICE, bookingUnit: BookingUnit.MINUTES, price: 120 },
+        { name: "Accès Hammam + Gommage", subId: getSubId(wellnessSubList, "Hammam"), categoryType: CategoryType.SERVICE, bookingUnit: BookingUnit.MINUTES, price: 70 },
       ],
-      courts: [
-        { name: "Court Panorama 1", subType: "exterior" as const },
-        { name: "Court Panorama 2", subType: "exterior" as const },
-      ],
-      logo: picsum("country-club-padel-djerba-logo", 256, 256),
-      coverImage: picsum("country-club-padel-djerba-cover", 1600, 900),
+      logo: picsum("spa-djerba-logo", 256, 256),
+      coverImage: picsum("spa-djerba-cover", 1600, 900),
     },
     {
-      email: "contact@padel-sidisalem.tn",
+      email: "contact@djerba-quad.tn",
       password: "Partner123!",
-      name: "Padel Sidi Salem - Sassi Stadium",
+      name: "Djerba Quad Adventures",
+      city: "Midoun",
+      governorate: "Médenine",
+      phone: "+216 75 123 004",
+      address: "Route Touristique, Midoun",
+      categoryId: catVehicles.id,
+      packId: packSilver.id,
+      isVerified: true,
+      description: "Découvrez les pistes sauvages et les plages de Djerba en Quad. Des circuits guidés pour tous les niveaux.",
+      keyFeatures: ["Quads récents", "Guide inclus", "Casques fournis"],
+      resourcesData: [
+        { name: "Quad Kymco 250cc (2h)", subId: getSubId(vehiclesSubList, "Quad"), categoryType: CategoryType.ITEM, bookingUnit: BookingUnit.HOURS, price: 40 },
+        { name: "Quad Kymco 250cc (Demi-journée)", subId: getSubId(vehiclesSubList, "Quad"), categoryType: CategoryType.ITEM, bookingUnit: BookingUnit.HOURS, price: 35 },
+      ],
+      logo: picsum("quad-djerba-logo", 256, 256),
+      coverImage: picsum("quad-djerba-cover", 1600, 900),
+    },
+    {
+      email: "hello@djerba-yoga.tn",
+      password: "Partner123!",
+      name: "Djerba Yoga Studio",
       city: "Houmt Souk",
       governorate: "Médenine",
       phone: "+216 75 123 005",
-      address: "Sidi Salem Beach Area, Houmt Souk, Djerba",
-      categoryId: catPadel.id,
+      address: "Marina, Houmt Souk",
+      categoryId: catWellness.id,
       packId: packSilver.id,
       isVerified: true,
-      description:
-        'Part of a larger multi-sport complex, this facility offers a unique playing experience near the scenic Sidi Salem coast. It is highly rated for its "fair-play" philosophy and modern infrastructure. It often hosts "Padel Prestige" sessions and local tournaments.',
-      keyFeatures: [
-        "2 High-Spec Outdoor Courts",
-        "Multi-sport facilities (Football/Tennis nearby)",
-        "Changing Rooms",
-        "Beach Proximity",
+      description: "Retrouvez la paix intérieure dans notre studio face à la mer. Cours de Hatha, Vinyasa et Yin Yoga.",
+      keyFeatures: ["Vue sur mer", "Tapis fournis", "Petits groupes"],
+      resourcesData: [
+        { name: "Cours Collectif Vinyasa", subId: undefined, categoryType: CategoryType.SERVICE, bookingUnit: BookingUnit.MINUTES, price: 25 },
+        { name: "Séance Privée Hatha", subId: undefined, categoryType: CategoryType.SERVICE, bookingUnit: BookingUnit.MINUTES, price: 80 },
       ],
-      courts: [
-        { name: "Court Sassi 1", subType: "exterior" as const },
-        { name: "Court Sassi 2", subType: "exterior" as const },
-      ],
-      logo: picsum("padel-sidi-salem-sassi-stadium-logo", 256, 256),
-      coverImage: picsum("padel-sidi-salem-sassi-stadium-cover", 1600, 900),
+      logo: picsum("yoga-djerba-logo", 256, 256),
+      coverImage: picsum("yoga-djerba-cover", 1600, 900),
     },
   ];
 
@@ -302,18 +302,19 @@ async function main() {
       },
     });
 
-    // Create resources (courts) with padel sub-category + hourly price
+    // Create resources with their specific category type and unit
     const resources = await Promise.all(
-      p.courts.map((court, i) => {
-        const subId = padelSubCategoryId(padelSubList, court.subType);
+      p.resourcesData.map((resData, i) => {
         return prisma.resource.create({
           data: {
             partnerId: partner.id,
-            name: court.name,
+            name: resData.name,
             capacity: 4,
             isActive: true,
-            subCategoryId: subId,
-            pricePerHour: 100, // Base price for Djerba courts
+            subCategoryId: resData.subId,
+            price: resData.price, // dynamic price
+            categoryType: resData.categoryType,
+            bookingUnit: resData.bookingUnit,
           },
         });
       }),
@@ -335,7 +336,7 @@ async function main() {
     }
 
     createdPartners.push({ partner, resources });
-    console.log(`  ✓  ${p.name} (${p.city}) — ${p.courts.length} terrain(s)`);
+    console.log(`  ✓  ${p.name} (${p.city}) — ${p.resourcesData.length} ressource(s)`);
   }
 
   console.log(`\n✓  ${createdPartners.length} partenaires créés`);
@@ -381,17 +382,17 @@ async function main() {
   const offersData = [
     {
       partnerIdx: 0,
-      title: "Happy Hour Matinal",
-      description: "De 8h à 12h, le terrain est à seulement 40 DT / heure !",
-      discountPercent: 60,
+      title: "Matinée Coworking",
+      description: "De 8h à 12h, votre espace est à moitié prix !",
+      discountPercent: 50,
       validFrom: dateStr(-2),
       validUntil: dateStr(30),
       approvalStatus: ApprovalStatus.APPROVED,
     },
     {
       partnerIdx: 1,
-      title: "Offre Après-Midi",
-      description: "De 12h à 17h, profitez du terrain pour 80 DT / heure.",
+      title: "Location Longue Durée",
+      description: "Réservez votre véhicule pour l'après-midi avec 20% de remise.",
       discountPercent: 20,
       validFrom: dateStr(0),
       validUntil: dateStr(14),
@@ -399,17 +400,17 @@ async function main() {
     },
     {
       partnerIdx: 2,
-      title: "Matinée Padel",
-      description: "Votre session du matin (8h-12h) est à 40 DT / heure.",
-      discountPercent: 60,
+      title: "Matinée Bien-être",
+      description: "Vos soins du matin (8h-12h) avec une remise exceptionnelle.",
+      discountPercent: 30,
       validFrom: dateStr(-7),
       validUntil: dateStr(60),
       approvalStatus: ApprovalStatus.APPROVED,
     },
     {
       partnerIdx: 3,
-      title: "Créneaux Creux",
-      description: "Réservez entre 12h et 17h et payez 80 DT au lieu de 100 DT.",
+      title: "Aventure Fin de Journée",
+      description: "Profitez du coucher de soleil avec 20% de remise sur votre session quad.",
       discountPercent: 20,
       validFrom: dateStr(0),
       validUntil: dateStr(21),
@@ -417,9 +418,9 @@ async function main() {
     },
     {
       partnerIdx: 4,
-      title: "Padel Prestige Matin",
-      description: "Les terrains sont à 40 DT de 8h à 12h. Profitez-en !",
-      discountPercent: 60,
+      title: "Zen Matinal",
+      description: "Les sessions de yoga sont à -40% de 8h à 12h. Respirez !",
+      discountPercent: 40,
       validFrom: dateStr(-3),
       validUntil: dateStr(45),
       approvalStatus: ApprovalStatus.APPROVED,
@@ -450,12 +451,12 @@ async function main() {
 ║  Admin      admin@padel.com / Admin123!       ║
 ║  Partenaires  Partner123! (mot de passe)      ║
 ╠═══════════════════════════════════════════════╣
-║  Djerba (Médenine) — 5 clubs                  ║
-║    Bourgo Arena Padel   contact@bourgo-arena.djerba.tn ║
-║    Radisson Padel       padel@radisson-djerba.tn ║
-║    Club Med Padel       padel@clubmed-djerba.tn ║
-║    Country Club Padel   contact@countryclub-djerba.tn ║
-║    Padel Sidi Salem     contact@padel-sidisalem.tn ║
+║  Djerba (Médenine) — 5 Partenaires           ║
+║    Coworking Hub Djerba contact@coworking-djerba.tn ║
+║    Djerba Rent A Car    resa@djerba-rentacar.tn ║
+║    Radisson Spa         spa@radisson-djerba.tn ║
+║    Djerba Quad          contact@djerba-quad.tn ║
+║    Studio Yoga          hello@djerba-yoga.tn ║
 ╚═══════════════════════════════════════════════╝
 `);
 }

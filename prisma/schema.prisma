@@ -40,6 +40,18 @@ enum ApprovalStatus {
   REJECTED
 }
 
+enum CategoryType {
+  SPACE
+  SERVICE
+  ITEM
+}
+
+enum BookingUnit {
+  MINUTES
+  HOURS
+  DAYS
+}
+
 model User {
   id        String     @id @default(uuid())
   email     String     @unique
@@ -55,27 +67,31 @@ model User {
 }
 
 model Partner {
-  id         String  @id @default(uuid())
-  userId     String  @unique
-  name       String
-  logo       String?
-  /** Hero / banner image URL (HTTPS recommended) */
-  coverImage String?
-  city       String
-  /** Tunisia governorate (wilaya) or other region label for location filters */
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  name        String
+  logo        String?
+  /**
+   * Hero / banner image URL (HTTPS recommended)
+   */
+  coverImage  String?
+  city        String
+  /**
+   * Tunisia governorate (wilaya) or other region label for location filters
+   */
   governorate String?
-  phone      String
-  address    String?
-  categoryId String
-  packId     String?
-  isVerified Boolean @default(false)
-  settings   Json    @default("{}")
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  phone       String
+  address     String?
+  categoryId  String
+  packId      String?
+  isVerified  Boolean  @default(false)
+  settings    Json     @default("{}")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  category  Category  @relation(fields: [categoryId], references: [id])
-  pack      Pack?     @relation(fields: [packId], references: [id])
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category  Category   @relation(fields: [categoryId], references: [id])
+  pack      Pack?      @relation(fields: [packId], references: [id])
   resources Resource[]
   offers    Offer[]
 
@@ -83,11 +99,13 @@ model Partner {
 }
 
 model Category {
-  id   String @id @default(uuid())
-  name String @unique
-  slug String @unique
-  /** Card / listing image URL (HTTPS recommended) */
-  imageUrl String?
+  id        String   @id @default(uuid())
+  name      String   @unique
+  slug      String   @unique
+  /**
+   * Card / listing image URL (HTTPS recommended)
+   */
+  imageUrl  String?
   createdAt DateTime @default(now())
 
   subCategories SubCategory[]
@@ -97,11 +115,13 @@ model Category {
 }
 
 model SubCategory {
-  id                 String @id @default(uuid())
+  id                 String  @id @default(uuid())
   categoryId         String
   name               String
   defaultDurationMin Int
-  /** Optional illustration URL (e.g. Cloudinary) */
+  /**
+   * Optional illustration URL (e.g. Cloudinary)
+   */
   imageUrl           String?
 
   category  Category   @relation(fields: [categoryId], references: [id], onDelete: Cascade)
@@ -112,20 +132,29 @@ model SubCategory {
 }
 
 model Resource {
-  id        String  @id @default(uuid())
-  partnerId String
-  name      String
-  capacity  Int     @default(1)
-  isActive  Boolean @default(true)
-  /** Optional: links court to a sub-category (e.g. Padel indoor). */
-  subCategoryId String?
-  /** Price per hour for display / booking (same currency as packs). */
-  pricePerHour  Decimal? @db.Decimal(10, 2)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                 String       @id @default(uuid())
+  partnerId          String
+  name               String
+  capacity           Int          @default(1)
+  isActive           Boolean      @default(true)
+  categoryType       CategoryType @default(SPACE)
+  bookingUnit        BookingUnit  @default(MINUTES)
+  minBookingDuration Int?
+  maxBookingDuration Int?
+  bufferTimeMin      Int          @default(0)
+  /**
+   * Optional: links court to a sub-category (e.g. Padel indoor).
+   */
+  subCategoryId      String?
+  /**
+   * Base price for the booking unit (MINUTES, HOURS, DAYS).
+   */
+  price              Decimal?     @db.Decimal(10, 2)
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
 
-  partner        Partner         @relation(fields: [partnerId], references: [id], onDelete: Cascade)
-  subCategory    SubCategory?    @relation(fields: [subCategoryId], references: [id], onDelete: SetNull)
+  partner        Partner        @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  subCategory    SubCategory?   @relation(fields: [subCategoryId], references: [id], onDelete: SetNull)
   availabilities Availability[]
   reservations   Reservation[]
 
@@ -137,8 +166,8 @@ model Availability {
   id              String    @id @default(uuid())
   resourceId      String
   dayOfWeek       DayOfWeek
-  startTime       String    // "HH:mm" format
-  endTime         String    // "HH:mm" format
+  startTime       String // "HH:mm" format
+  endTime         String // "HH:mm" format
   slotIntervalMin Int       @default(60)
 
   resource Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
@@ -154,8 +183,9 @@ model Reservation {
   guestPhone String
   guestEmail String?
   date       DateTime          @db.Date
-  startTime  String            // "HH:mm"
-  endTime    String            // "HH:mm"
+  endDate    DateTime?         @db.Date
+  startTime  String // "HH:mm"
+  endTime    String // "HH:mm"
   status     ReservationStatus @default(PENDING)
   createdAt  DateTime          @default(now())
   updatedAt  DateTime          @updatedAt
@@ -167,11 +197,11 @@ model Reservation {
 }
 
 model Pack {
-  id           String  @id @default(uuid())
-  name         String  @unique
+  id           String   @id @default(uuid())
+  name         String   @unique
   maxResources Int
-  features     Json    @default("[]")
-  priceMonthly Decimal @db.Decimal(10, 2)
+  features     Json     @default("[]")
+  priceMonthly Decimal  @db.Decimal(10, 2)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

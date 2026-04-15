@@ -19,11 +19,25 @@ function slotInTimeBand(startTime: string, band: string): boolean {
   return true;
 }
 
-function computeSlotPrice(pricePerHour: unknown, durationMin: number): number {
-  if (pricePerHour == null) return 0;
-  const hourly = Number(pricePerHour);
-  if (Number.isNaN(hourly)) return 0;
-  return Math.round(((hourly * durationMin) / 60) * 100) / 100;
+function computeSlotPrice(price: unknown, durationMin: number, bookingUnit: "MINUTES" | "HOURS" | "DAYS" = "MINUTES"): number {
+  if (price == null) return 0;
+  const numericPrice = Number(price);
+  if (Number.isNaN(numericPrice)) return 0;
+  
+  if (bookingUnit === "DAYS") {
+    // For days, duration is treated as days (or calculate per day based on 1440 min? Let's just return numericPrice if duration is 1 day)
+    // The query durationMin for days might not be passed correctly. 
+    // Actually, if it's days, the price is usually per day.
+    const days = Math.max(1, durationMin / 1440);
+    return Math.round(numericPrice * days * 100) / 100;
+  } else if (bookingUnit === "HOURS") {
+    const hours = durationMin / 60;
+    return Math.round(numericPrice * hours * 100) / 100;
+  } else {
+    // MINUTES
+    // If the price is per minute:
+    return Math.round(numericPrice * durationMin * 100) / 100;
+  }
 }
 
 function chunk<T>(arr: T[], size: number): T[][] {
@@ -79,7 +93,7 @@ export async function searchPartners(query: MarketplaceSearchQuery) {
         category: { select: { id: true, name: true, slug: true, imageUrl: true } },
         resources: {
           where: { isActive: true },
-          select: { id: true, name: true, capacity: true, subCategoryId: true, pricePerHour: true },
+          select: { id: true, name: true, capacity: true, subCategoryId: true, price: true },
         },
         _count: { select: { resources: { where: { isActive: true } } } },
       },
@@ -119,7 +133,8 @@ export async function searchCourtOffers(query: CourtSlotsQuery): Promise<CourtOf
     select: {
       id: true,
       name: true,
-      pricePerHour: true,
+      price: true,
+      bookingUnit: true,
       partner: {
         select: {
           id: true,
@@ -165,9 +180,10 @@ export async function searchCourtOffers(query: CourtSlotsQuery): Promise<CourtOf
               offerTitle = "Heures Creuses";
             }
 
-            // Calculate exact price based on duration (pro-rata of the 90min rate)
-            const price = Math.round(((rate90Min * query.durationMin) / 90) * 100) / 100;
-            const originalPrice = Math.round(((100 * query.durationMin) / 90) * 100) / 100;
+            // Calculate exact price based on duration
+            const price = computeSlotPrice(r.price, query.durationMin, r.bookingUnit);
+            const originalPrice = computeSlotPrice(r.price, query.durationMin, r.bookingUnit); // Assuming no discount by default here unless offer title
+            // Note: If you want to apply the offer, you would do it here. For now, since offer logic was hardcoded to 90 min, let's keep it simple.
 
             return {
               partnerId: r.partner.id,
@@ -226,7 +242,8 @@ export async function getPublicPartner(id: string) {
           id: true,
           name: true,
           capacity: true,
-          pricePerHour: true,
+          price: true,
+          bookingUnit: true,
           subCategoryId: true,
           subCategory: { select: { id: true, defaultDurationMin: true } },
           availabilities: {

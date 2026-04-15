@@ -41,6 +41,7 @@ export function calculateAvailableSlots(
   availability: AvailabilityWindow,
   bookings: Booking[],
   requestedDurationMin: number,
+  bufferTimeMin: number = 0
 ): TimeSlot[] {
   const openStart = timeToMinutes(availability.startTime);
   const openEnd = timeToMinutes(availability.endTime);
@@ -58,7 +59,7 @@ export function calculateAvailableSlots(
 
     const isBooked = sortedBookings.some((booking) => {
       const bStart = timeToMinutes(booking.startTime);
-      const bEnd = timeToMinutes(booking.endTime);
+      const bEnd = timeToMinutes(booking.endTime) + bufferTimeMin;
       return slotStart < bEnd && slotEnd > bStart;
     });
 
@@ -80,11 +81,12 @@ export function calculateSlotsForDay(
   availabilities: AvailabilityWindow[],
   bookings: Booking[],
   requestedDurationMin: number,
+  bufferTimeMin: number = 0
 ): TimeSlot[] {
   const allSlots: TimeSlot[] = [];
 
   for (const avail of availabilities) {
-    const slots = calculateAvailableSlots(avail, bookings, requestedDurationMin);
+    const slots = calculateAvailableSlots(avail, bookings, requestedDurationMin, bufferTimeMin);
     allSlots.push(...slots);
   }
 
