@@ -18,6 +18,9 @@ import offersRoutes from './modules/offers/offers.routes';
 import slotsRoutes from './modules/slots/slots.routes';
 import reservationsRoutes from './modules/reservations/reservations.routes';
 import marketplaceRoutes from './modules/marketplace/marketplace.routes';
+import customersRoutes from './modules/customers/customers.routes';
+import matchesRoutes from './modules/matches/matches.routes';
+import notificationsRoutes from './modules/notifications/notifications.routes';
 
 const app = express();
 
@@ -71,6 +74,9 @@ app.use('/api/offers', offersRoutes);
 app.use('/api/slots', slotsRoutes);
 app.use('/api/reservations', reservationsRoutes);
 app.use('/api/marketplace', marketplaceRoutes);
+app.use('/api/customers', customersRoutes);
+app.use('/api/matches', matchesRoutes);
+app.use('/api/notifications', notificationsRoutes);
 
 app.use(errorHandler);
 

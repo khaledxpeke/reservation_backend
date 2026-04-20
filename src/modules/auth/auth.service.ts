@@ -3,7 +3,7 @@ import { prisma } from '../../lib/prisma';
 import { redis } from '../../lib/redis';
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../../lib/jwt';
 import { BadRequestError, ConflictError, UnauthorizedError } from '../../lib/errors';
-import { RegisterInput, LoginInput } from './auth.schema';
+import { RegisterInput, RegisterCustomerInput, LoginInput } from './auth.schema';
 import { env } from '../../config';
 
 const REFRESH_TOKEN_PREFIX = 'rt:blacklist:';
@@ -64,10 +64,53 @@ export async function register(input: RegisterInput) {
   };
 }
 
+export async function registerCustomer(input: RegisterCustomerInput) {
+  const existing = await prisma.user.findUnique({ where: { email: input.email } });
+  if (existing) {
+    throw new ConflictError('EMAIL_EXISTS', 'An account with this email already exists');
+  }
+
+  const hashedPassword = await bcrypt.hash(input.password, 12);
+
+  const user = await prisma.user.create({
+    data: {
+      email: input.email,
+      password: hashedPassword,
+      role: 'CUSTOMER',
+      customerProfile: {
+        create: {
+          firstName: input.firstName,
+          lastName: input.lastName,
+          gender: input.gender,
+          dob: new Date(input.dob),
+          phone: input.phone,
+          region: input.region,
+        },
+      },
+    },
+    include: { customerProfile: true },
+  });
+
+  const payload = { userId: user.id, role: user.role };
+  const accessToken = signAccessToken(payload);
+  const refreshToken = signRefreshToken(payload);
+
+  return {
+    user: {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      customerProfile: user.customerProfile,
+    },
+    accessToken,
+    refreshToken,
+  };
+}
+
 export async function login(input: LoginInput) {
   const user = await prisma.user.findUnique({
     where: { email: input.email },
-    include: { partner: true },
+    include: { partner: true, customerProfile: true },
   });
 
   if (!user) {
@@ -93,6 +136,7 @@ export async function login(input: LoginInput) {
       email: user.email,
       role: user.role,
       partner: user.partner,
+      customerProfile: user.customerProfile,
     },
     accessToken,
     refreshToken,

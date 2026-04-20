@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import * as reservationsController from './reservations.controller';
 import { authenticate } from '../../middleware/authenticate';
+import { optionalAuthenticate } from '../../middleware/optionalAuthenticate';
 import { authorize } from '../../middleware/authorize';
 import { validate } from '../../middleware/validate';
 import {
@@ -20,7 +21,12 @@ router.get(
   reservationsController.listAdminReservations,
 );
 
-router.post('/', validate({ body: createReservationSchema }), reservationsController.createReservation);
+router.post(
+  '/',
+  optionalAuthenticate,
+  validate({ body: createReservationSchema }),
+  reservationsController.createReservation,
+);
 
 router.get(
   '/partner',

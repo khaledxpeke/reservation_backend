@@ -4,7 +4,8 @@ import { getParam } from '../../lib/helpers';
 
 export async function createReservation(req: Request, res: Response, next: NextFunction) {
   try {
-    const data = await reservationsService.createReservation(req.body);
+    const userId = req.user?.role === 'CUSTOMER' ? req.user.userId : undefined;
+    const data = await reservationsService.createReservation(req.body, userId);
     res.status(201).json({ success: true, data });
   } catch (err) {
     next(err);

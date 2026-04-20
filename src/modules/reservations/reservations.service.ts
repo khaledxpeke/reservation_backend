@@ -12,7 +12,7 @@ function slotLockKey(resourceId: string, date: string, startTime: string): strin
   return `${SLOT_LOCK_PREFIX}${resourceId}:${date}:${startTime}`;
 }
 
-export async function createReservation(input: CreateReservationInput) {
+export async function createReservation(input: CreateReservationInput, userId?: string) {
   const resource = await prisma.resource.findUnique({
     where: { id: input.resourceId },
     include: { partner: true },
@@ -96,6 +96,7 @@ export async function createReservation(input: CreateReservationInput) {
   return prisma.reservation.create({
     data: {
       resourceId: input.resourceId,
+      userId: userId ?? null,
       guestName: input.guestName,
       guestPhone: input.guestPhone,
       guestEmail: input.guestEmail,
