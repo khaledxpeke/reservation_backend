@@ -1,12 +1,13 @@
 import { NextFunction, Request, Response } from 'express';
 import * as notificationsService from './notifications.service';
 import { getParam } from '../../lib/helpers';
+import { ListNotificationsQuery } from './notifications.schema';
 
 export async function listMine(req: Request, res: Response, next: NextFunction) {
   try {
     const data = await notificationsService.listMyNotifications(
       req.user!.userId,
-      req.query as any,
+      req.query as unknown as ListNotificationsQuery,
     );
     res.json({ success: true, data });
   } catch (err) {
@@ -40,3 +41,4 @@ export async function markAllRead(req: Request, res: Response, next: NextFunctio
     next(err);
   }
 }
+

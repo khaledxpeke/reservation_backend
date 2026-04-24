@@ -23,3 +23,4 @@ export function paginatedResponse<T>(data: T[], total: number, input: Pagination
     },
   };
 }
+

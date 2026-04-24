@@ -39,3 +39,4 @@ export async function deleteResource(req: Request, res: Response, next: NextFunc
     next(err);
   }
 }
+

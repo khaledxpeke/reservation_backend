@@ -107,6 +107,53 @@ export async function searchPartners(query: MarketplaceSearchQuery) {
   return paginatedResponse(partners, total, pagination);
 }
 
+// Day-of-week names indexed by JS getDay() (0 = Sunday)
+const JS_DAY_NAMES = ['SUNDAY','MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY'] as const;
+const WEEKDAYS = new Set(['MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY']);
+const WEEKEND_DAYS = new Set(['SATURDAY','SUNDAY']);
+
+type ActiveOffer = {
+  title: string;
+  discountPercent: number;
+  recurrence: string;
+  recurrenceDays: string[];
+  timeStart: string | null;
+  timeEnd: string | null;
+  validFrom: Date | null;
+  validUntil: Date | null;
+};
+
+/** Returns true if the offer applies to the given date and slot start time */
+function offerMatchesSlot(offer: ActiveOffer, dateObj: Date, dayOfWeek: string, slotStartTime: string): boolean {
+  // Check overall validity period
+  if (offer.validFrom && offer.validFrom > dateObj) return false;
+  if (offer.validUntil && offer.validUntil < dateObj) return false;
+
+  // Check recurrence day matching
+  const rec = offer.recurrence;
+  if (rec === 'NONE') {
+    // One-shot: valid within validFrom..validUntil (already checked above)
+  } else if (rec === 'DAILY') {
+    // Always applies
+  } else if (rec === 'WEEKDAY') {
+    if (!WEEKDAYS.has(dayOfWeek)) return false;
+  } else if (rec === 'WEEKEND') {
+    if (!WEEKEND_DAYS.has(dayOfWeek)) return false;
+  } else if (rec === 'WEEKLY') {
+    if (!offer.recurrenceDays.includes(dayOfWeek)) return false;
+  }
+
+  // Check time window (if set)
+  if (offer.timeStart && offer.timeEnd) {
+    const slotMins = timeToMinutes(slotStartTime);
+    const startMins = timeToMinutes(offer.timeStart);
+    const endMins = timeToMinutes(offer.timeEnd);
+    if (slotMins < startMins || slotMins >= endMins) return false;
+  }
+
+  return true;
+}
+
 /**
  * Flat list of bookable court rows: first available slot per resource matching filters,
  * for a given date, duration, and time-of-day band.
@@ -150,6 +197,54 @@ export async function searchCourtOffers(query: CourtSlotsQuery): Promise<CourtOf
     take: 100,
   });
 
+  // Pre-fetch active offers for all involved partners
+  const now = new Date();
+  const [y, m, d] = query.date.split('-').map(Number);
+  const queryDateObj = new Date(y, m - 1, d, 12, 0, 0); // noon to avoid TZ issues
+  const dayOfWeek = JS_DAY_NAMES[queryDateObj.getDay()];
+
+  const partnerIds = [...new Set(resources.map((r) => r.partner.id))];
+  const dbOffers = partnerIds.length > 0
+    ? await prisma.offer.findMany({
+        where: {
+          partnerId: { in: partnerIds },
+          approvalStatus: 'APPROVED',
+          AND: [
+            { OR: [{ validFrom: { lte: now } }, { validFrom: null }] },
+            { OR: [{ validUntil: { gte: now } }, { validUntil: null }] },
+          ],
+        },
+        select: {
+          partnerId: true,
+          title: true,
+          discountPercent: true,
+          recurrence: true,
+          recurrenceDays: true,
+          timeStart: true,
+          timeEnd: true,
+          validFrom: true,
+          validUntil: true,
+        },
+      })
+    : [];
+
+  // Group offers by partnerId
+  const offersByPartner = new Map<string, ActiveOffer[]>();
+  for (const o of dbOffers) {
+    const list = offersByPartner.get(o.partnerId) ?? [];
+    list.push({
+      title: o.title,
+      discountPercent: Number(o.discountPercent),
+      recurrence: o.recurrence,
+      recurrenceDays: o.recurrenceDays,
+      timeStart: o.timeStart,
+      timeEnd: o.timeEnd,
+      validFrom: o.validFrom,
+      validUntil: o.validUntil,
+    });
+    offersByPartner.set(o.partnerId, list);
+  }
+
   const offers: CourtOfferRow[] = [];
 
   for (const batch of chunk(resources, 12)) {
@@ -165,25 +260,26 @@ export async function searchCourtOffers(query: CourtSlotsQuery): Promise<CourtOf
             (s) => s.status === 'available' && slotInTimeBand(s.startTime, query.timeBand),
           );
           if (available.length === 0) return [];
+
           const imageUrl = r.partner.coverImage ?? r.partner.logo;
-          return available.map(slot => {
-            const h = parseInt(slot.startTime.split(':')[0], 10);
-            let rate90Min = 100; // Base rate for 90 minutes
-            let offerTitle: string | undefined = undefined;
+          const partnerOffers = offersByPartner.get(r.partner.id) ?? [];
 
-            if (h >= 8 && h < 12) {
-              rate90Min = 40;
-              offerTitle = "Happy Hour Matinal";
-            }
-            else if (h >= 12 && h < 17) {
-              rate90Min = 80;
-              offerTitle = "Heures Creuses";
+          return available.map((slot) => {
+            const basePrice = computeSlotPrice(r.price, query.durationMin, r.bookingUnit);
+
+            // Find the best matching offer (highest discount) for this slot
+            let bestOffer: ActiveOffer | undefined;
+            for (const offer of partnerOffers) {
+              if (offerMatchesSlot(offer, queryDateObj, dayOfWeek, slot.startTime)) {
+                if (!bestOffer || offer.discountPercent > bestOffer.discountPercent) {
+                  bestOffer = offer;
+                }
+              }
             }
 
-            // Calculate exact price based on duration
-            const price = computeSlotPrice(r.price, query.durationMin, r.bookingUnit);
-            const originalPrice = computeSlotPrice(r.price, query.durationMin, r.bookingUnit); // Assuming no discount by default here unless offer title
-            // Note: If you want to apply the offer, you would do it here. For now, since offer logic was hardcoded to 90 min, let's keep it simple.
+            const discountedPrice = bestOffer
+              ? Math.round(basePrice * (1 - bestOffer.discountPercent / 100) * 100) / 100
+              : basePrice;
 
             return {
               partnerId: r.partner.id,
@@ -195,9 +291,9 @@ export async function searchCourtOffers(query: CourtSlotsQuery): Promise<CourtOf
               imageUrl,
               startTime: slot.startTime,
               endTime: slot.endTime,
-              price,
-              originalPrice: price < originalPrice ? originalPrice : undefined,
-              offerTitle,
+              price: discountedPrice,
+              originalPrice: bestOffer ? basePrice : undefined,
+              offerTitle: bestOffer?.title,
               durationMin: query.durationMin,
             } satisfies CourtOfferRow;
           });
@@ -252,8 +348,18 @@ export async function getPublicPartner(id: string) {
         },
       },
       offers: {
-        where: { approvalStatus: 'APPROVED', validUntil: { gte: new Date() } },
-        select: { id: true, title: true, description: true, discountPercent: true, validFrom: true, validUntil: true },
+        where: {
+          approvalStatus: 'APPROVED',
+          AND: [
+            { OR: [{ validFrom: { lte: new Date() } }, { validFrom: null }] },
+            { OR: [{ validUntil: { gte: new Date() } }, { validUntil: null }] },
+          ],
+        },
+        select: {
+          id: true, title: true, description: true, discountPercent: true,
+          validFrom: true, validUntil: true,
+          recurrence: true, recurrenceDays: true, timeStart: true, timeEnd: true,
+        },
       },
     },
   });
@@ -261,3 +367,4 @@ export async function getPublicPartner(id: string) {
   if (!partner) throw new NotFoundError('Partner');
   return partner;
 }
+

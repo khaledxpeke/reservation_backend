@@ -24,3 +24,4 @@ export function authenticate(req: Request, _res: Response, next: NextFunction): 
     next(new UnauthorizedError('Invalid or expired token'));
   }
 }
+

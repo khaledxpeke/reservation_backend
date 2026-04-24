@@ -56,3 +56,4 @@ export async function getAvailableSlots(query: AvailableSlotsQuery) {
 
   return { date: query.date, dayOfWeek, slots };
 }
+

@@ -1,5 +1,6 @@
 import { NotificationType, Prisma } from '@prisma/client';
 import { prisma } from '../../lib/prisma';
+import { logger } from '../../lib/logger';
 import { NotFoundError } from '../../lib/errors';
 import { paginate, paginatedResponse, PaginationInput } from '../../lib/pagination';
 import { ListNotificationsQuery } from './notifications.schema';
@@ -30,8 +31,7 @@ export async function createNotification(input: CreateNotificationInput) {
       },
     });
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('Failed to create notification', err);
+    logger.error({ err }, 'Failed to create notification');
     return null;
   }
 }
@@ -78,3 +78,4 @@ export async function markAllRead(userId: string) {
   });
   return { updated: result.count };
 }
+

@@ -64,3 +64,4 @@ export async function deleteSubCategory(req: Request, res: Response, next: NextF
     next(err);
   }
 }
+

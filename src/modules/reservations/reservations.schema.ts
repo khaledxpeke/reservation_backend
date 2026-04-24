@@ -37,3 +37,4 @@ export const listReservationsQuerySchema = paginationSchema.extend({
 
 export type CreateReservationInput = z.infer<typeof createReservationSchema>;
 export type ListReservationsQuery = z.infer<typeof listReservationsQuerySchema>;
+

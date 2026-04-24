@@ -26,3 +26,4 @@ export const partnerIdParamSchema = z.object({
 
 export type MarketplaceSearchQuery = z.infer<typeof marketplaceSearchSchema>;
 export type CourtSlotsQuery = z.infer<typeof courtSlotsQuerySchema>;
+

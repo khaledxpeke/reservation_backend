@@ -1,10 +1,11 @@
 import { Request, Response, NextFunction } from 'express';
 import * as matchesService from './matches.service';
 import { getParam } from '../../lib/helpers';
+import { ListMatchPostsQuery } from './matches.schema';
 
 export async function listPosts(req: Request, res: Response, next: NextFunction) {
   try {
-    const data = await matchesService.listMatchPosts(req.query as any, req.user?.userId);
+    const data = await matchesService.listMatchPosts(req.query as unknown as ListMatchPostsQuery, req.user?.userId);
     res.json({ success: true, data });
   } catch (err) {
     next(err);
@@ -56,7 +57,7 @@ export async function cancelPost(req: Request, res: Response, next: NextFunction
 
 export async function listMyCreated(req: Request, res: Response, next: NextFunction) {
   try {
-    const data = await matchesService.listMyCreatedPosts(req.user!.userId, req.query as any);
+    const data = await matchesService.listMyCreatedPosts(req.user!.userId, req.query as unknown as ListMatchPostsQuery);
     res.json({ success: true, data });
   } catch (err) {
     next(err);
@@ -65,7 +66,7 @@ export async function listMyCreated(req: Request, res: Response, next: NextFunct
 
 export async function listMyRequests(req: Request, res: Response, next: NextFunction) {
   try {
-    const data = await matchesService.listMyJoinRequests(req.user!.userId, req.query as any);
+    const data = await matchesService.listMyJoinRequests(req.user!.userId, req.query as unknown as ListMatchPostsQuery);
     res.json({ success: true, data });
   } catch (err) {
     next(err);
@@ -107,3 +108,4 @@ export async function withdrawRequest(req: Request, res: Response, next: NextFun
     next(err);
   }
 }
+

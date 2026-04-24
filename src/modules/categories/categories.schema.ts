@@ -32,3 +32,4 @@ export type CreateCategoryInput = z.infer<typeof createCategorySchema>;
 export type UpdateCategoryInput = z.infer<typeof updateCategorySchema>;
 export type CreateSubCategoryInput = z.infer<typeof createSubCategorySchema>;
 export type UpdateSubCategoryInput = z.infer<typeof updateSubCategorySchema>;
+

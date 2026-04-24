@@ -8,3 +8,4 @@ export const listNotificationsQuerySchema = paginationSchema.extend({
 export const notificationIdParamSchema = z.object({ id: z.string().uuid() });
 
 export type ListNotificationsQuery = z.infer<typeof listNotificationsQuerySchema>;
+

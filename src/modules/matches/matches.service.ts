@@ -490,3 +490,4 @@ export async function withdrawJoinRequest(userId: string, matchPostId: string) {
   }
   await prisma.matchJoinRequest.delete({ where: { id: request.id } });
 }
+

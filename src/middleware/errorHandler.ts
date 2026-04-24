@@ -20,7 +20,8 @@ export function errorHandler(err: Error, _req: Request, res: Response, _next: Ne
     success: false,
     error: {
       code: 'INTERNAL_ERROR',
-      message: 'An unexpected error occurred',
+      message: 'Une erreur inattendue est survenue.',
     },
   });
 }
+

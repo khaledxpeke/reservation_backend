@@ -94,3 +94,4 @@ export function calculateSlotsForDay(
     (a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime),
   );
 }
+

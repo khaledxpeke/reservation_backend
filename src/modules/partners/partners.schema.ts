@@ -48,3 +48,4 @@ export const partnerIdParamSchema = z.object({
 export type ListPartnersQuery = z.infer<typeof listPartnersQuerySchema>;
 export type CreatePartnerInput = z.infer<typeof createPartnerSchema>;
 export type UpdatePartnerInput = z.infer<typeof updatePartnerSchema>;
+

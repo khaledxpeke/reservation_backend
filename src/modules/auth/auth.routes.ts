@@ -24,3 +24,4 @@ router.post('/refresh', validate({ body: refreshSchema }), authController.refres
 router.post('/logout', authenticate, validate({ body: refreshSchema }), authController.logout);
 
 export default router;
+

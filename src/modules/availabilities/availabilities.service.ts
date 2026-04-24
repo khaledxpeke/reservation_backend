@@ -40,3 +40,4 @@ export async function setAvailabilities(userId: string, resourceId: string, inpu
     orderBy: { dayOfWeek: 'asc' },
   });
 }
+

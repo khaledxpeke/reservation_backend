@@ -32,3 +32,4 @@ export const redis: Redis | null = env.REDIS_ENABLED ? createClient() : null;
 export function isRedisConfigured(): boolean {
   return redis !== null;
 }
+

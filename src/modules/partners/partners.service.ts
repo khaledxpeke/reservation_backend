@@ -40,7 +40,7 @@ export async function listPartners(query: ListPartnersQuery) {
   return paginatedResponse(partners, total, pagination);
 }
 
-export async function getPartner(id: string) {
+export async function getPartner(id: string, requesterId: string, requesterRole: string) {
   const partner = await prisma.partner.findUnique({
     where: { id },
     select: {
@@ -49,6 +49,12 @@ export async function getPartner(id: string) {
     },
   });
   if (!partner) throw new NotFoundError('Partner');
+
+  // A PARTNER can only read their own record
+  if (requesterRole === 'PARTNER' && partner.user.id !== requesterId) {
+    throw new ForbiddenError('You can only access your own partner profile');
+  }
+
   return partner;
 }
 
@@ -149,3 +155,4 @@ export async function assignPack(id: string, packId: string | null) {
     select: partnerSelect,
   });
 }
+

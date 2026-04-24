@@ -74,3 +74,4 @@ export type UpdateMatchPostInput = z.infer<typeof updateMatchPostSchema>;
 export type ListMatchPostsQuery = z.infer<typeof listMatchPostsQuerySchema>;
 export type CreateJoinRequestInput = z.infer<typeof createJoinRequestSchema>;
 export type UpdateJoinRequestInput = z.infer<typeof updateJoinRequestSchema>;
+

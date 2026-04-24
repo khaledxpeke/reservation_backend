@@ -1,7 +1,7 @@
 import { Prisma, UserStatus } from '@prisma/client';
 import { prisma } from '../../lib/prisma';
 import { paginate, paginatedResponse, PaginationInput } from '../../lib/pagination';
-import { NotFoundError } from '../../lib/errors';
+import { ForbiddenError, NotFoundError } from '../../lib/errors';
 import { ListUsersQuery } from './users.schema';
 
 export async function listUsers(query: ListUsersQuery) {
@@ -30,9 +30,17 @@ export async function listUsers(query: ListUsersQuery) {
   return paginatedResponse(users, total, pagination);
 }
 
-export async function updateUserStatus(userId: string, status: UserStatus) {
+export async function updateUserStatus(requesterId: string, userId: string, status: UserStatus) {
+  if (requesterId === userId) {
+    throw new ForbiddenError('Vous ne pouvez pas modifier le statut de votre propre compte.');
+  }
+
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) throw new NotFoundError('User');
+
+  if (user.role === 'SUPER_ADMIN') {
+    throw new ForbiddenError('Le statut d\'un administrateur ne peut pas être modifié.');
+  }
 
   return prisma.user.update({
     where: { id: userId },
@@ -41,9 +49,18 @@ export async function updateUserStatus(userId: string, status: UserStatus) {
   });
 }
 
-export async function deleteUser(userId: string) {
+export async function deleteUser(requesterId: string, userId: string) {
+  if (requesterId === userId) {
+    throw new ForbiddenError('Vous ne pouvez pas supprimer votre propre compte.');
+  }
+
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) throw new NotFoundError('User');
 
+  if (user.role === 'SUPER_ADMIN') {
+    throw new ForbiddenError('Un compte administrateur ne peut pas être supprimé.');
+  }
+
   await prisma.user.delete({ where: { id: userId } });
 }
+

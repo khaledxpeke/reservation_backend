@@ -25,3 +25,4 @@ export function verifyAccessToken(token: string): TokenPayload {
 export function verifyRefreshToken(token: string): TokenPayload {
   return jwt.verify(token, env.JWT_REFRESH_SECRET) as TokenPayload;
 }
+

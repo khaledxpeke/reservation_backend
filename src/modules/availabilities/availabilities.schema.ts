@@ -24,3 +24,4 @@ export const resourceIdParamSchema = z.object({
 });
 
 export type SetAvailabilitiesInput = z.infer<typeof setAvailabilitiesSchema>;
+

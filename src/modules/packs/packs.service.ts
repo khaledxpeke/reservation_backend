@@ -74,3 +74,4 @@ export async function deletePack(id: string) {
 
   await prisma.pack.delete({ where: { id } });
 }
+

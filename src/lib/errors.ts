@@ -19,20 +19,20 @@ export class BadRequestError extends AppError {
 }
 
 export class UnauthorizedError extends AppError {
-  constructor(message = 'Authentication required') {
+  constructor(message = 'Authentification requise.') {
     super(401, 'UNAUTHORIZED', message);
   }
 }
 
 export class ForbiddenError extends AppError {
-  constructor(message = 'Insufficient permissions') {
+  constructor(message = 'Vous n’avez pas les droits nécessaires pour effectuer cette action.') {
     super(403, 'FORBIDDEN', message);
   }
 }
 
 export class NotFoundError extends AppError {
   constructor(resource: string) {
-    super(404, 'NOT_FOUND', `${resource} not found`);
+    super(404, 'NOT_FOUND', `${resource} introuvable.`);
   }
 }
 
@@ -41,3 +41,4 @@ export class ConflictError extends AppError {
     super(409, code, message);
   }
 }
+

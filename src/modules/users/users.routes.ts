@@ -14,3 +14,4 @@ router.patch('/:id/status', validate({ params: userIdParamSchema, body: updateUs
 router.delete('/:id', validate({ params: userIdParamSchema }), usersController.deleteUser);
 
 export default router;
+

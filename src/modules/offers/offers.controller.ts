@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import * as offersService from './offers.service';
 import { getParam } from '../../lib/helpers';
+import { ListOffersQuery } from './offers.schema';
 
 export async function createOffer(req: Request, res: Response, next: NextFunction) {
   try {
@@ -13,7 +14,10 @@ export async function createOffer(req: Request, res: Response, next: NextFunctio
 
 export async function listPartnerOffers(req: Request, res: Response, next: NextFunction) {
   try {
-    const data = await offersService.listPartnerOffers(req.user!.userId, req.query as any);
+    const data = await offersService.listPartnerOffers(
+      req.user!.userId,
+      req.query as unknown as ListOffersQuery,
+    );
     res.json({ success: true, data });
   } catch (err) {
     next(err);
@@ -22,7 +26,7 @@ export async function listPartnerOffers(req: Request, res: Response, next: NextF
 
 export async function listPublicOffers(req: Request, res: Response, next: NextFunction) {
   try {
-    const data = await offersService.listPublicOffers(req.query as any);
+    const data = await offersService.listPublicOffers(req.query as unknown as ListOffersQuery);
     res.json({ success: true, data });
   } catch (err) {
     next(err);
@@ -40,7 +44,7 @@ export async function updateApproval(req: Request, res: Response, next: NextFunc
 
 export async function listAllOffers(req: Request, res: Response, next: NextFunction) {
   try {
-    const data = await offersService.listAllOffers(req.query as any);
+    const data = await offersService.listAllOffers(req.query as unknown as ListOffersQuery);
     res.json({ success: true, data });
   } catch (err) {
     next(err);

@@ -10,3 +10,4 @@ router.get('/court-slots', validate({ query: courtSlotsQuerySchema }), marketpla
 router.get('/partners/:id', validate({ params: partnerIdParamSchema }), marketplaceController.getPublicPartner);
 
 export default router;
+

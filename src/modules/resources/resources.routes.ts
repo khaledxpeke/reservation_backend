@@ -15,3 +15,4 @@ router.patch('/:id', validate({ params: resourceIdParamSchema, body: updateResou
 router.delete('/:id', validate({ params: resourceIdParamSchema }), resourcesController.deleteResource);
 
 export default router;
+

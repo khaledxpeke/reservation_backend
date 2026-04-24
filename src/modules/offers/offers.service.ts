@@ -14,8 +14,12 @@ export async function createOffer(userId: string, input: CreateOfferInput) {
       title: input.title,
       description: input.description,
       discountPercent: input.discountPercent,
-      validFrom: input.validFrom,
-      validUntil: input.validUntil,
+      validFrom: input.validFrom ?? null,
+      validUntil: input.validUntil ?? null,
+      recurrence: input.recurrence,
+      recurrenceDays: input.recurrenceDays,
+      timeStart: input.timeStart ?? null,
+      timeEnd: input.timeEnd ?? null,
     },
   });
 }
@@ -39,9 +43,15 @@ export async function listPartnerOffers(userId: string, query: ListOffersQuery) 
 }
 
 export async function listPublicOffers(query: ListOffersQuery) {
+  const now = new Date();
   const where: Prisma.OfferWhereInput = {
     approvalStatus: 'APPROVED',
-    validUntil: { gte: new Date() },
+    AND: [
+      // Offer must have started (validFrom in past/today, or no validFrom set)
+      { OR: [{ validFrom: { lte: now } }, { validFrom: null }] },
+      // Offer must not have expired (validUntil in future, or no end date)
+      { OR: [{ validUntil: { gte: now } }, { validUntil: null }] },
+    ],
   };
 
   const pagination: PaginationInput = { page: query.page, limit: query.limit };
@@ -50,8 +60,8 @@ export async function listPublicOffers(query: ListOffersQuery) {
   const [offers, total] = await Promise.all([
     prisma.offer.findMany({
       where,
-      include: { partner: { select: { name: true, city: true } } },
-      orderBy: { validFrom: 'desc' },
+      include: { partner: { select: { name: true, city: true, logo: true, coverImage: true } } },
+      orderBy: { createdAt: 'desc' },
       skip,
       take,
     }),
@@ -91,3 +101,4 @@ export async function listAllOffers(query: ListOffersQuery) {
 
   return paginatedResponse(offers, total, pagination);
 }
+

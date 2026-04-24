@@ -13,7 +13,7 @@ export const globalLimiter = rateLimit({
   legacyHeaders: false,
   message: {
     success: false,
-    error: { code: 'RATE_LIMIT', message: 'Too many requests, please try again later' },
+    error: { code: 'RATE_LIMIT', message: 'Trop de requêtes. Réessayez dans quelques instants.' },
   },
 });
 
@@ -24,6 +24,7 @@ export const authLimiter = rateLimit({
   legacyHeaders: false,
   message: {
     success: false,
-    error: { code: 'RATE_LIMIT', message: 'Too many authentication attempts' },
+    error: { code: 'RATE_LIMIT', message: 'Trop de tentatives de connexion. Réessayez dans quelques instants.' },
   },
 });
+

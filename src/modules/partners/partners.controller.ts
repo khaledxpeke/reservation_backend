@@ -1,10 +1,11 @@
 import { Request, Response, NextFunction } from 'express';
 import * as partnersService from './partners.service';
 import { getParam } from '../../lib/helpers';
+import { ListPartnersQuery, UpdatePartnerInput } from './partners.schema';
 
 export async function listPartners(req: Request, res: Response, next: NextFunction) {
   try {
-    const result = await partnersService.listPartners(req.query as any);
+    const result = await partnersService.listPartners(req.query as unknown as ListPartnersQuery);
     res.json({ success: true, data: result });
   } catch (err) {
     next(err);
@@ -13,7 +14,11 @@ export async function listPartners(req: Request, res: Response, next: NextFuncti
 
 export async function getPartner(req: Request, res: Response, next: NextFunction) {
   try {
-    const data = await partnersService.getPartner(getParam(req, 'id'));
+    const data = await partnersService.getPartner(
+      getParam(req, 'id'),
+      req.user!.userId,
+      req.user!.role,
+    );
     res.json({ success: true, data });
   } catch (err) {
     next(err);
@@ -69,3 +74,4 @@ export async function deletePartner(req: Request, res: Response, next: NextFunct
     next(err);
   }
 }
+

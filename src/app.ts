@@ -6,6 +6,7 @@ import { globalLimiter } from './middleware/rateLimiter';
 import { errorHandler } from './middleware/errorHandler';
 import { requestLogger } from './middleware/requestLogger';
 import { getOpenApiSpec } from './docs/openapi';
+import { env } from './config';
 
 import authRoutes from './modules/auth/auth.routes';
 import usersRoutes from './modules/users/users.routes';
@@ -24,6 +25,8 @@ import notificationsRoutes from './modules/notifications/notifications.routes';
 
 const app = express();
 
+const allowedOrigins = env.CORS_ORIGINS.split(',').map((o) => o.trim()).filter(Boolean);
+
 app.use(
   helmet({
     contentSecurityPolicy: {
@@ -38,8 +41,20 @@ app.use(
     },
   }),
 );
-app.use(cors());
-app.use(express.json());
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (server-to-server, curl, Postman in dev)
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      callback(new Error(`CORS: origin '${origin}' not allowed`));
+    },
+    credentials: true,
+  }),
+);
+
+app.use(express.json({ limit: '1mb' }));
 app.use(requestLogger);
 app.use(globalLimiter);
 
@@ -47,21 +62,21 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-app.get('/api/openapi.json', (_req, res) => {
-  res.json(getOpenApiSpec());
-});
+// Swagger / OpenAPI — development only
+if (env.NODE_ENV !== 'production') {
+  app.get('/api/openapi.json', (_req, res) => {
+    res.json(getOpenApiSpec());
+  });
 
-app.use(
-  '/api/docs',
-  swaggerUi.serve,
-  swaggerUi.setup(getOpenApiSpec(), {
-    customSiteTitle: 'Padel Résa API',
-    swaggerOptions: {
-      persistAuthorization: true,
-      displayRequestDuration: true,
-    },
-  }),
-);
+  app.use(
+    '/api/docs',
+    swaggerUi.serve,
+    swaggerUi.setup(getOpenApiSpec(), {
+      customSiteTitle: 'Padel Résa API',
+      swaggerOptions: { persistAuthorization: true, displayRequestDuration: true },
+    }),
+  );
+}
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', usersRoutes);
@@ -81,3 +96,4 @@ app.use('/api/notifications', notificationsRoutes);
 app.use(errorHandler);
 
 export default app;
+

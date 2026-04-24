@@ -17,10 +17,10 @@ export const updateResourceSchema = z.object({
   isActive: z.boolean().optional(),
   categoryType: z.enum(['SPACE', 'SERVICE', 'ITEM']).optional(),
   bookingUnit: z.enum(['MINUTES', 'HOURS', 'DAYS']).optional(),
-  minBookingDuration: z.number().int().min(1).optional(),
-  maxBookingDuration: z.number().int().min(1).optional(),
+  minBookingDuration: z.number().int().min(1).nullable().optional(),
+  maxBookingDuration: z.number().int().min(1).nullable().optional(),
   bufferTimeMin: z.number().int().min(0).optional(),
-  price: z.number().min(0).optional(),
+  price: z.number().min(0).nullable().optional(),
 });
 
 export const resourceIdParamSchema = z.object({
@@ -29,3 +29,4 @@ export const resourceIdParamSchema = z.object({
 
 export type CreateResourceInput = z.infer<typeof createResourceSchema>;
 export type UpdateResourceInput = z.infer<typeof updateResourceSchema>;
+

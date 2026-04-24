@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import * as reservationsService from './reservations.service';
 import { getParam } from '../../lib/helpers';
+import { ListReservationsQuery } from './reservations.schema';
 
 export async function createReservation(req: Request, res: Response, next: NextFunction) {
   try {
@@ -14,7 +15,7 @@ export async function createReservation(req: Request, res: Response, next: NextF
 
 export async function listPartnerReservations(req: Request, res: Response, next: NextFunction) {
   try {
-    const data = await reservationsService.listPartnerReservations(req.user!.userId, req.query as any);
+    const data = await reservationsService.listPartnerReservations(req.user!.userId, req.query as unknown as ListReservationsQuery);
     res.json({ success: true, data });
   } catch (err) {
     next(err);
@@ -37,7 +38,7 @@ export async function updateReservationStatus(req: Request, res: Response, next:
 
 export async function listAdminReservations(req: Request, res: Response, next: NextFunction) {
   try {
-    const data = await reservationsService.listAdminReservations(req.query as any);
+    const data = await reservationsService.listAdminReservations(req.query as unknown as ListReservationsQuery);
     res.json({ success: true, data });
   } catch (err) {
     next(err);
@@ -61,3 +62,4 @@ export async function getAdminStats(_req: Request, res: Response, next: NextFunc
     next(err);
   }
 }
+

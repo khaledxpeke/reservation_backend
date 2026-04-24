@@ -7,3 +7,4 @@ export const availableSlotsQuerySchema = z.object({
 });
 
 export type AvailableSlotsQuery = z.infer<typeof availableSlotsQuerySchema>;
+

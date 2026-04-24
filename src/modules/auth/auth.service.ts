@@ -2,7 +2,7 @@ import bcrypt from 'bcryptjs';
 import { prisma } from '../../lib/prisma';
 import { redis } from '../../lib/redis';
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../../lib/jwt';
-import { BadRequestError, ConflictError, UnauthorizedError } from '../../lib/errors';
+import { AppError, BadRequestError, ConflictError, UnauthorizedError } from '../../lib/errors';
 import { RegisterInput, RegisterCustomerInput, LoginInput } from './auth.schema';
 import { env } from '../../config';
 
@@ -118,7 +118,7 @@ export async function login(input: LoginInput) {
   }
 
   if (user.status === 'BLOCKED') {
-    throw new UnauthorizedError('Your account has been blocked');
+    throw new AppError(403, 'ACCOUNT_BLOCKED', 'Votre compte a été suspendu. Veuillez contacter le support.');
   }
 
   const valid = await bcrypt.compare(input.password, user.password);
@@ -165,8 +165,9 @@ export async function refresh(refreshToken: string) {
   }
 
   const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
-  if (!user || user.status === 'BLOCKED') {
-    throw new UnauthorizedError('Account not found or blocked');
+  if (!user) throw new UnauthorizedError('Compte introuvable.');
+  if (user.status === 'BLOCKED') {
+    throw new AppError(403, 'ACCOUNT_BLOCKED', 'Votre compte a été suspendu. Veuillez contacter le support.');
   }
 
   const ttl = parseExpiryToSeconds(env.JWT_REFRESH_EXPIRY);
@@ -195,3 +196,4 @@ export async function logout(refreshToken: string) {
     // best-effort blacklist
   }
 }
+

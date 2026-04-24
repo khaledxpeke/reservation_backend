@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import * as customersService from './customers.service';
 import { getParam } from '../../lib/helpers';
+import { ListMyReservationsQuery } from './customers.schema';
 
 export async function getMe(req: Request, res: Response, next: NextFunction) {
   try {
@@ -24,7 +25,7 @@ export async function listMyReservations(req: Request, res: Response, next: Next
   try {
     const data = await customersService.listMyReservations(
       req.user!.userId,
-      req.query as any,
+      req.query as unknown as ListMyReservationsQuery,
     );
     res.json({ success: true, data });
   } catch (err) {
@@ -43,3 +44,4 @@ export async function cancelMyReservation(req: Request, res: Response, next: Nex
     next(err);
   }
 }
+

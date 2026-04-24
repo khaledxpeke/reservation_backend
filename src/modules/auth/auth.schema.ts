@@ -37,3 +37,4 @@ export type RegisterInput = z.infer<typeof registerSchema>;
 export type RegisterCustomerInput = z.infer<typeof registerCustomerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type RefreshInput = z.infer<typeof refreshSchema>;
+

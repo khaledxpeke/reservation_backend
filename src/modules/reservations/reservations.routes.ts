@@ -45,7 +45,7 @@ router.patch(
 );
 
 router.get(
-  '/admin',
+  '/admin/stats',
   authenticate,
   authorize('SUPER_ADMIN'),
   reservationsController.getAdminStats,
@@ -60,3 +60,4 @@ router.delete(
 );
 
 export default router;
+

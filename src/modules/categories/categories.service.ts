@@ -68,3 +68,4 @@ export async function deleteSubCategory(id: string) {
 
   await prisma.subCategory.delete({ where: { id } });
 }
+

@@ -20,3 +20,4 @@ export const packIdParamSchema = z.object({
 
 export type CreatePackInput = z.infer<typeof createPackSchema>;
 export type UpdatePackInput = z.infer<typeof updatePackSchema>;
+

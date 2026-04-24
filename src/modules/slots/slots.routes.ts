@@ -8,3 +8,4 @@ const router = Router();
 router.get('/available', validate({ query: availableSlotsQuerySchema }), slotsController.getAvailableSlots);
 
 export default router;
+

@@ -108,3 +108,4 @@ export async function cancelMyReservation(userId: string, reservationId: string)
     data: { status: 'CANCELLED' },
   });
 }
+

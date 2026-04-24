@@ -355,17 +355,29 @@ model Notification {
   @@map("notifications")
 }
 
+enum OfferRecurrence {
+  NONE
+  DAILY
+  WEEKDAY
+  WEEKEND
+  WEEKLY
+}
+
 model Offer {
-  id              String         @id @default(uuid())
+  id              String          @id @default(uuid())
   partnerId       String
   title           String
   description     String?
-  discountPercent Decimal        @db.Decimal(5, 2)
-  validFrom       DateTime
-  validUntil      DateTime
-  approvalStatus  ApprovalStatus @default(PENDING)
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
+  discountPercent Decimal         @db.Decimal(5, 2)
+  validFrom       DateTime?
+  validUntil      DateTime?
+  recurrence      OfferRecurrence @default(NONE)
+  recurrenceDays  String[]        @default([])
+  timeStart       String?
+  timeEnd         String?
+  approvalStatus  ApprovalStatus  @default(PENDING)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
 
   partner Partner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
 

@@ -23,3 +23,4 @@ export async function setAvailabilities(req: Request, res: Response, next: NextF
     next(err);
   }
 }
+

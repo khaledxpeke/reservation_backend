@@ -61,3 +61,4 @@ export async function deleteResource(userId: string, resourceId: string) {
     data: { isActive: false },
   });
 }
+

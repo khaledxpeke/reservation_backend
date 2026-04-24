@@ -12,3 +12,4 @@ export function authorize(...allowedRoles: string[]) {
     next();
   };
 }
+

@@ -382,20 +382,23 @@ async function main() {
   const offersData = [
     {
       partnerIdx: 0,
-      title: "Matinée Coworking",
+      title: "Happy Hour Matin",
       description: "De 8h à 12h, votre espace est à moitié prix !",
       discountPercent: 50,
-      validFrom: dateStr(-2),
-      validUntil: dateStr(30),
+      validFrom: dateStr(0),
+      recurrence: "DAILY" as const,
+      timeStart: "08:00",
+      timeEnd: "12:00",
       approvalStatus: ApprovalStatus.APPROVED,
     },
     {
       partnerIdx: 1,
-      title: "Location Longue Durée",
-      description: "Réservez votre véhicule pour l'après-midi avec 20% de remise.",
+      title: "Offre Week-end",
+      description: "Réservez votre véhicule le week-end avec 20% de remise.",
       discountPercent: 20,
       validFrom: dateStr(0),
-      validUntil: dateStr(14),
+      validUntil: dateStr(60),
+      recurrence: "WEEKEND" as const,
       approvalStatus: ApprovalStatus.APPROVED,
     },
     {
@@ -403,8 +406,10 @@ async function main() {
       title: "Matinée Bien-être",
       description: "Vos soins du matin (8h-12h) avec une remise exceptionnelle.",
       discountPercent: 30,
-      validFrom: dateStr(-7),
-      validUntil: dateStr(60),
+      validFrom: dateStr(0),
+      recurrence: "WEEKDAY" as const,
+      timeStart: "08:00",
+      timeEnd: "12:00",
       approvalStatus: ApprovalStatus.APPROVED,
     },
     {
@@ -413,7 +418,10 @@ async function main() {
       description: "Profitez du coucher de soleil avec 20% de remise sur votre session quad.",
       discountPercent: 20,
       validFrom: dateStr(0),
-      validUntil: dateStr(21),
+      validUntil: dateStr(30),
+      recurrence: "DAILY" as const,
+      timeStart: "17:00",
+      timeEnd: "20:00",
       approvalStatus: ApprovalStatus.APPROVED,
     },
     {
@@ -421,8 +429,10 @@ async function main() {
       title: "Zen Matinal",
       description: "Les sessions de yoga sont à -40% de 8h à 12h. Respirez !",
       discountPercent: 40,
-      validFrom: dateStr(-3),
-      validUntil: dateStr(45),
+      validFrom: dateStr(0),
+      recurrence: "DAILY" as const,
+      timeStart: "08:00",
+      timeEnd: "12:00",
       approvalStatus: ApprovalStatus.APPROVED,
     },
   ];
@@ -436,7 +446,10 @@ async function main() {
         description: o.description,
         discountPercent: o.discountPercent,
         validFrom: o.validFrom,
-        validUntil: o.validUntil,
+        validUntil: o.validUntil ?? null,
+        recurrence: o.recurrence,
+        timeStart: o.timeStart ?? null,
+        timeEnd: o.timeEnd ?? null,
         approvalStatus: o.approvalStatus,
       },
     });
@@ -448,7 +461,7 @@ async function main() {
 ╔═══════════════════════════════════════════════╗
 ║           SEED TERMINÉ AVEC SUCCÈS            ║
 ╠═══════════════════════════════════════════════╣
-║  Admin      admin@padel.com / Admin123!       ║
+║  Admin      admin@reservation.com / Admin123! ║
 ║  Partenaires  Partner123! (mot de passe)      ║
 ╠═══════════════════════════════════════════════╣
 ║  Djerba (Médenine) — 5 Partenaires           ║

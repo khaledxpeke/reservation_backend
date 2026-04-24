@@ -33,7 +33,7 @@ export function validate(schemas: ValidationSchemas) {
           success: false,
           error: {
             code: 'VALIDATION_ERROR',
-            message: 'Invalid request data',
+            message: 'Vérifiez les champs du formulaire.',
             details: error.issues.map((e) => ({
               field: e.path.join('.'),
               message: e.message,
@@ -46,3 +46,4 @@ export function validate(schemas: ValidationSchemas) {
     }
   };
 }
+

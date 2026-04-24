@@ -20,3 +20,4 @@ export function optionalAuthenticate(req: Request, _res: Response, next: NextFun
   }
   next();
 }
+

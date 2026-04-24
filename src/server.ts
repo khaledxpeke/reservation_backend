@@ -9,3 +9,4 @@ app.listen(env.PORT, () => {
     logger.warn('REDIS_ENABLED=false — running without Redis (no refresh blacklist, no distributed slot locks)');
   }
 });
+
