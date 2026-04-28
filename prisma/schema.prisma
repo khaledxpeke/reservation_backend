@@ -89,6 +89,16 @@ enum NotificationType {
   MATCH_REQUEST_DECLINED
   MATCH_POST_CANCELLED
   MATCH_POST_FULL
+  MATCH_POST_EXPIRED
+}
+
+enum SportType {
+  PADEL
+  TENNIS
+  FOOTBALL
+  BASKETBALL
+  VOLLEYBALL
+  OTHER
 }
 
 model User {
@@ -299,6 +309,7 @@ model MatchPost {
    * Number of additional players the creator is looking for.
    */
   neededPlayers Int
+  sport         SportType        @default(PADEL)
   genderPref    GenderPreference @default(ANY)
   skillLevel    SkillLevel
   description   String?

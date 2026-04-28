@@ -164,6 +164,7 @@ export async function listMatchPosts(query: ListMatchPostsQuery, viewerId?: stri
   if (query.governorate) where.governorate = query.governorate;
   if (query.skillLevel) where.skillLevel = query.skillLevel;
   if (query.genderPref) where.genderPref = query.genderPref;
+  if (query.sport) where.sport = query.sport;
 
   if (query.date) {
     where.date = startOfUtcDay(query.date);
@@ -218,6 +219,7 @@ export async function createMatchPost(creatorId: string, input: CreateMatchPostI
       governorate: input.governorate,
       city: input.city,
       neededPlayers: input.neededPlayers,
+      sport: input.sport,
       genderPref: input.genderPref,
       skillLevel: input.skillLevel,
       description: input.description,
@@ -249,6 +251,7 @@ export async function updateMatchPost(
   if (input.governorate !== undefined) data.governorate = input.governorate;
   if (input.city !== undefined) data.city = input.city;
   if (input.neededPlayers !== undefined) data.neededPlayers = input.neededPlayers;
+  if (input.sport !== undefined) data.sport = input.sport;
   if (input.genderPref !== undefined) data.genderPref = input.genderPref;
   if (input.skillLevel !== undefined) data.skillLevel = input.skillLevel;
   if (input.description !== undefined) data.description = input.description;

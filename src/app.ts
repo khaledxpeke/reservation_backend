@@ -22,6 +22,7 @@ import marketplaceRoutes from './modules/marketplace/marketplace.routes';
 import customersRoutes from './modules/customers/customers.routes';
 import matchesRoutes from './modules/matches/matches.routes';
 import notificationsRoutes from './modules/notifications/notifications.routes';
+import { startScheduler } from './lib/scheduler';
 
 const app = express();
 
@@ -94,6 +95,8 @@ app.use('/api/matches', matchesRoutes);
 app.use('/api/notifications', notificationsRoutes);
 
 app.use(errorHandler);
+
+startScheduler();
 
 export default app;
 

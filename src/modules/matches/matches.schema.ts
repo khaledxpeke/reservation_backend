@@ -8,6 +8,7 @@ export const skillLevelSchema = z.enum(['BEGINNER', 'INTERMEDIATE', 'ADVANCED'])
 export const genderPrefSchema = z.enum(['ANY', 'MALE', 'FEMALE']);
 export const matchPostStatusSchema = z.enum(['OPEN', 'CLOSED', 'CANCELLED']);
 export const matchRequestStatusSchema = z.enum(['PENDING', 'ACCEPTED', 'DECLINED']);
+export const sportTypeSchema = z.enum(['PADEL', 'TENNIS', 'FOOTBALL', 'BASKETBALL', 'VOLLEYBALL', 'OTHER']);
 
 export const createMatchPostSchema = z
   .object({
@@ -17,6 +18,7 @@ export const createMatchPostSchema = z
     governorate: z.string().max(100).optional(),
     city: z.string().max(100).optional(),
     neededPlayers: z.coerce.number().int().min(1).max(20),
+    sport: sportTypeSchema.default('PADEL'),
     genderPref: genderPrefSchema.default('ANY'),
     skillLevel: skillLevelSchema,
     description: z.string().max(500).optional(),
@@ -34,6 +36,7 @@ export const updateMatchPostSchema = z
     governorate: z.string().max(100).nullable().optional(),
     city: z.string().max(100).nullable().optional(),
     neededPlayers: z.coerce.number().int().min(1).max(20).optional(),
+    sport: sportTypeSchema.optional(),
     genderPref: genderPrefSchema.optional(),
     skillLevel: skillLevelSchema.optional(),
     description: z.string().max(500).nullable().optional(),
@@ -48,6 +51,7 @@ export const listMatchPostsQuerySchema = paginationSchema.extend({
   governorate: z.string().max(100).optional(),
   skillLevel: skillLevelSchema.optional(),
   genderPref: genderPrefSchema.optional(),
+  sport: sportTypeSchema.optional(),
   date: z.string().regex(dateRegex).optional(),
   /** earliest date (inclusive) */
   dateFrom: z.string().regex(dateRegex).optional(),
@@ -74,4 +78,5 @@ export type UpdateMatchPostInput = z.infer<typeof updateMatchPostSchema>;
 export type ListMatchPostsQuery = z.infer<typeof listMatchPostsQuerySchema>;
 export type CreateJoinRequestInput = z.infer<typeof createJoinRequestSchema>;
 export type UpdateJoinRequestInput = z.infer<typeof updateJoinRequestSchema>;
+export type SportTypeInput = z.infer<typeof sportTypeSchema>;
 
