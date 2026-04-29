@@ -39,6 +39,13 @@ enum ReservationStatus {
   CONFIRMED
   REJECTED
   CANCELLED
+  PAID
+}
+
+enum FactureStatus {
+  UNPAID
+  PARTIAL
+  PAID
 }
 
 enum ApprovalStatus {
@@ -162,6 +169,7 @@ model Partner {
   categoryId  String
   packId      String?
   isVerified  Boolean  @default(false)
+  commissionPercent Decimal @default(0) @db.Decimal(5, 2)
   settings    Json     @default("{}")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -171,6 +179,7 @@ model Partner {
   pack      Pack?      @relation(fields: [packId], references: [id])
   resources Resource[]
   offers    Offer[]
+  factures  ReservationFacture[]
 
   @@map("partners")
 }
@@ -255,6 +264,7 @@ model Availability {
 
 model Reservation {
   id         String            @id @default(uuid())
+  reference  String            @unique
   resourceId String
   /**
    * Optional link to a Customer account that placed the booking.
@@ -274,10 +284,33 @@ model Reservation {
 
   resource Resource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
   user     User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  facture  ReservationFacture?
 
   @@index([resourceId, date])
   @@index([userId])
   @@map("reservations")
+}
+
+model ReservationFacture {
+  id                String        @id @default(uuid())
+  reference         String        @unique
+  reservationId     String        @unique
+  partnerId         String
+  reservationTotal  Decimal       @db.Decimal(10, 2)
+  commissionPercent Decimal       @db.Decimal(5, 2)
+  amountDue         Decimal       @db.Decimal(10, 2)
+  amountPaid        Decimal       @default(0) @db.Decimal(10, 2)
+  status            FactureStatus @default(UNPAID)
+  generatedAt       DateTime      @default(now())
+  paidAt            DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  reservation Reservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  partner     Partner     @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@index([partnerId, generatedAt])
+  @@map("reservation_factures")
 }
 
 model Pack {

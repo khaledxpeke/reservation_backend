@@ -19,7 +19,7 @@ export const updateCustomerProfileSchema = z
   });
 
 export const listMyReservationsQuerySchema = paginationSchema.extend({
-  status: z.enum(['PENDING', 'CONFIRMED', 'REJECTED', 'CANCELLED']).optional(),
+  status: z.enum(['PENDING', 'CONFIRMED', 'REJECTED', 'CANCELLED', 'PAID']).optional(),
   scope: z.enum(['upcoming', 'past', 'all']).default('all'),
 });
 

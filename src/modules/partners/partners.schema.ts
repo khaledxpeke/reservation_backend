@@ -21,6 +21,7 @@ export const createPartnerSchema = z.object({
   coverImage: z.string().url().optional().nullable(),
   packId: z.string().uuid().optional().nullable(),
   isVerified: z.boolean().optional(),
+  commissionPercent: z.number().min(0).max(100).optional(),
 });
 
 export const updatePartnerSchema = z.object({
@@ -31,6 +32,7 @@ export const updatePartnerSchema = z.object({
   phone: z.string().min(6).max(20).optional(),
   address: z.string().max(255).optional(),
   categoryId: z.string().uuid().optional(),
+  commissionPercent: z.number().min(0).max(100).optional(),
 });
 
 export const verifyPartnerSchema = z.object({

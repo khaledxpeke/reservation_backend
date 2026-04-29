@@ -38,7 +38,7 @@ export async function getAvailableSlots(query: AvailableSlotsQuery) {
     where: {
       resourceId: query.resourceId,
       date: { gte: dayStart, lte: dayEnd },
-      status: { in: ['PENDING', 'CONFIRMED'] },
+      status: { in: ['PENDING', 'CONFIRMED', 'PAID'] },
     },
     select: { startTime: true, endTime: true },
   });

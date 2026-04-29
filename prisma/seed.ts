@@ -16,6 +16,12 @@ const prisma = new PrismaClient();
 
 const hash = (p: string) => bcrypt.hash(p, 10);
 
+function reservationReference(index: number, createdAt = new Date()): string {
+  const year = createdAt.getUTCFullYear();
+  const month = String(createdAt.getUTCMonth() + 1).padStart(2, "0");
+  return `RES-${year}${month}-${String(index).padStart(4, "0")}`;
+}
+
 /** Demo image URLs (Lorem Picsum). Avoids Unsplash hotlink/404 issues with the Next.js Image optimizer. */
 function picsum(seed: string, w: number, h: number): string {
   const s = seed.slice(0, 100).replace(/\s+/g, "-");
@@ -358,6 +364,7 @@ async function main() {
     { partnerIdx: 0, resourceIdx: 0, offsetDays: -1, start: "09:00", end: "10:30", status: ReservationStatus.CANCELLED, name: "Fares Haddad", phone: "+216 97 141 414", email: null },
   ];
 
+  let reservationIndex = 1;
   for (const r of reservationsToCreate) {
     const { partner, resources } = createdPartners[r.partnerIdx];
     const resource = resources[r.resourceIdx];
@@ -365,6 +372,7 @@ async function main() {
 
     await prisma.reservation.create({
       data: {
+        reference: reservationReference(reservationIndex),
         resourceId: resource.id,
         guestName: r.name,
         guestPhone: r.phone,
@@ -375,6 +383,7 @@ async function main() {
         status: r.status,
       },
     });
+    reservationIndex += 1;
   }
   console.log(`✓  ${reservationsToCreate.length} réservations créées`);
 

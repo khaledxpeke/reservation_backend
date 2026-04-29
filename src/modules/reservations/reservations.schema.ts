@@ -22,7 +22,7 @@ export const createReservationSchema = z.object({
 });
 
 export const updateReservationStatusSchema = z.object({
-  status: z.enum(['CONFIRMED', 'REJECTED', 'CANCELLED']),
+  status: z.enum(['CONFIRMED', 'REJECTED', 'CANCELLED', 'PAID']),
 });
 
 export const reservationIdParamSchema = z.object({
@@ -30,7 +30,7 @@ export const reservationIdParamSchema = z.object({
 });
 
 export const listReservationsQuerySchema = paginationSchema.extend({
-  status: z.enum(['PENDING', 'CONFIRMED', 'REJECTED', 'CANCELLED']).optional(),
+  status: z.enum(['PENDING', 'CONFIRMED', 'REJECTED', 'CANCELLED', 'PAID']).optional(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   resourceId: z.string().uuid().optional(),
 });

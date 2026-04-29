@@ -14,6 +14,7 @@ const partnerSelect = {
   phone: true,
   address: true,
   isVerified: true,
+  commissionPercent: true,
   settings: true,
   createdAt: true,
   category: { select: { id: true, name: true, slug: true } },
@@ -98,6 +99,7 @@ export async function createPartner(input: CreatePartnerInput) {
           coverImage: input.coverImage ?? undefined,
           packId: input.packId ?? undefined,
           isVerified: input.isVerified ?? false,
+          commissionPercent: input.commissionPercent ?? 0,
         },
       },
     },
@@ -126,7 +128,13 @@ export async function updatePartner(id: string, userId: string, role: string, in
     throw new ForbiddenError('You can only update your own profile');
   }
 
-  return prisma.partner.update({ where: { id }, data: input, select: partnerSelect });
+  const { commissionPercent, ...profileInput } = input;
+  const data: Prisma.PartnerUpdateInput = {
+    ...profileInput,
+    ...(role === 'SUPER_ADMIN' && commissionPercent !== undefined ? { commissionPercent } : {}),
+  };
+
+  return prisma.partner.update({ where: { id }, data, select: partnerSelect });
 }
 
 export async function verifyPartner(id: string, isVerified: boolean) {

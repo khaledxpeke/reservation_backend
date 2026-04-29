@@ -2,11 +2,18 @@ import { Prisma, ReservationStatus } from '@prisma/client';
 import { prisma } from '../../lib/prisma';
 import { redis } from '../../lib/redis';
 import { paginate, paginatedResponse, PaginationInput } from '../../lib/pagination';
-import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from '../../lib/errors';
+import { ConflictError, ForbiddenError, NotFoundError } from '../../lib/errors';
 import { CreateReservationInput, ListReservationsQuery } from './reservations.schema';
+import {
+  computeReservationTotal,
+  getNextFactureReference,
+  getNextReservationReference,
+  validateReservationTransition,
+} from './reservationBilling';
 
 const SLOT_LOCK_PREFIX = 'slot:';
 const SLOT_LOCK_TTL = 300; // 5 minutes
+const BLOCKING_STATUSES: ReservationStatus[] = ['PENDING', 'CONFIRMED', 'PAID'];
 
 function slotLockKey(resourceId: string, date: string, startTime: string): string {
   return `${SLOT_LOCK_PREFIX}${resourceId}:${date}:${startTime}`;
@@ -47,7 +54,7 @@ export async function createReservation(input: CreateReservationInput, userId?: 
     conflicting = await prisma.reservation.findFirst({
       where: {
         resourceId: input.resourceId,
-        status: { in: ['PENDING', 'CONFIRMED'] },
+            status: { in: BLOCKING_STATUSES },
         OR: [
           {
             date: { lte: dateEnd },
@@ -65,7 +72,7 @@ export async function createReservation(input: CreateReservationInput, userId?: 
     conflicting = await prisma.reservation.findFirst({
       where: {
         resourceId: input.resourceId,
-        status: { in: ['PENDING', 'CONFIRMED'] },
+        status: { in: BLOCKING_STATUSES },
         OR: [
           {
             date: { lte: dateStart },
@@ -93,22 +100,33 @@ export async function createReservation(input: CreateReservationInput, userId?: 
     throw new ConflictError('SLOT_ALREADY_BOOKED', 'This time slot is no longer available');
   }
 
-  return prisma.reservation.create({
-    data: {
-      resourceId: input.resourceId,
-      userId: userId ?? null,
-      guestName: input.guestName,
-      guestPhone: input.guestPhone,
-      guestEmail: input.guestEmail,
-      date: new Date(input.date),
-      endDate: input.endDate ? new Date(input.endDate) : null,
-      startTime: input.startTime,
-      endTime: input.endTime,
-      status: 'PENDING',
-    },
-    include: {
-      resource: { select: { name: true, partner: { select: { name: true } } } },
-    },
+  return prisma.$transaction(async (tx) => {
+    const createdAt = new Date();
+    const monthStart = new Date(Date.UTC(createdAt.getUTCFullYear(), createdAt.getUTCMonth(), 1));
+    const nextMonthStart = new Date(Date.UTC(createdAt.getUTCFullYear(), createdAt.getUTCMonth() + 1, 1));
+    const monthCount = await tx.reservation.count({
+      where: { createdAt: { gte: monthStart, lt: nextMonthStart } },
+    });
+
+    return tx.reservation.create({
+      data: {
+        reference: getNextReservationReference(monthCount + 1, createdAt),
+        resourceId: input.resourceId,
+        userId: userId ?? null,
+        guestName: input.guestName,
+        guestPhone: input.guestPhone,
+        guestEmail: input.guestEmail,
+        date: new Date(input.date),
+        endDate: input.endDate ? new Date(input.endDate) : null,
+        startTime: input.startTime,
+        endTime: input.endTime,
+        status: 'PENDING',
+        createdAt,
+      },
+      include: {
+        resource: { select: { name: true, partner: { select: { name: true } } } },
+      },
+    });
   });
 }
 
@@ -155,7 +173,7 @@ export async function updateReservationStatus(
 ) {
   const reservation = await prisma.reservation.findUnique({
     where: { id: reservationId },
-    include: { resource: { include: { partner: true } } },
+    include: { resource: { include: { partner: true } }, facture: true },
   });
   if (!reservation) throw new NotFoundError('Reservation');
 
@@ -163,14 +181,61 @@ export async function updateReservationStatus(
     throw new ForbiddenError('You can only manage reservations for your own resources');
   }
 
-  if (reservation.status !== 'PENDING') {
-    throw new BadRequestError('INVALID_STATUS_TRANSITION', `Cannot change status from ${reservation.status}`);
-  }
+  const isAdminPaidCancellation =
+    role === 'SUPER_ADMIN' && reservation.status === 'PAID' && status === 'CANCELLED';
 
-  const updated = await prisma.reservation.update({
-    where: { id: reservationId },
-    data: { status },
-    include: { resource: { select: { name: true } } },
+  validateReservationTransition(reservation.status, status, {
+    allowPaidCancellation: isAdminPaidCancellation,
+  });
+
+  const updated = await prisma.$transaction(async (tx) => {
+    if (isAdminPaidCancellation) {
+      await tx.reservationFacture.deleteMany({ where: { reservationId } });
+      return tx.reservation.update({
+        where: { id: reservationId },
+        data: { status: 'CANCELLED' },
+        include: { resource: { select: { name: true } }, facture: true },
+      });
+    }
+
+    if (status !== 'PAID' || reservation.status === 'PAID') {
+      return tx.reservation.update({
+        where: { id: reservationId },
+        data: { status },
+        include: { resource: { select: { name: true } }, facture: true },
+      });
+    }
+
+    const generatedAt = new Date();
+    const monthStart = new Date(Date.UTC(generatedAt.getUTCFullYear(), generatedAt.getUTCMonth(), 1));
+    const nextMonthStart = new Date(Date.UTC(generatedAt.getUTCFullYear(), generatedAt.getUTCMonth() + 1, 1));
+    const monthCount = await tx.reservationFacture.count({
+      where: { generatedAt: { gte: monthStart, lt: nextMonthStart } },
+    });
+    const reservationTotal = computeReservationTotal(reservation);
+    const commissionPercent = new Prisma.Decimal(reservation.resource.partner.commissionPercent);
+    const amountDue = reservationTotal.mul(commissionPercent).div(100).toDecimalPlaces(2);
+
+    await tx.reservationFacture.create({
+      data: {
+        reference: getNextFactureReference(monthCount + 1, generatedAt),
+        reservationId,
+        partnerId: reservation.resource.partnerId,
+        reservationTotal,
+        commissionPercent,
+        amountDue,
+        amountPaid: new Prisma.Decimal(0),
+        status: amountDue.equals(0) ? 'PAID' : 'UNPAID',
+        paidAt: amountDue.equals(0) ? generatedAt : null,
+        generatedAt,
+      },
+    });
+
+    return tx.reservation.update({
+      where: { id: reservationId },
+      data: { status },
+      include: { resource: { select: { name: true } }, facture: true },
+    });
   });
 
   const dateStr = reservation.date.toISOString().split('T')[0];
@@ -233,11 +298,12 @@ export async function deleteReservation(id: string) {
 }
 
 export async function getAdminStats() {
-  const [totalBookings, pending, confirmed, rejected] = await Promise.all([
+  const [totalBookings, pending, confirmed, rejected, paid] = await Promise.all([
     prisma.reservation.count(),
     prisma.reservation.count({ where: { status: 'PENDING' } }),
     prisma.reservation.count({ where: { status: 'CONFIRMED' } }),
     prisma.reservation.count({ where: { status: 'REJECTED' } }),
+    prisma.reservation.count({ where: { status: 'PAID' } }),
   ]);
 
   const totalPartners = await prisma.partner.count();
@@ -245,7 +311,7 @@ export async function getAdminStats() {
   const totalResources = await prisma.resource.count({ where: { isActive: true } });
 
   return {
-    bookings: { total: totalBookings, pending, confirmed, rejected },
+    bookings: { total: totalBookings, pending, confirmed, rejected, paid },
     partners: { total: totalPartners, verified: verifiedPartners },
     resources: { total: totalResources },
   };
