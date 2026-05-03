@@ -15,6 +15,7 @@ import {
   UpdateMatchPostInput,
 } from './matches.schema';
 import { createNotification } from '../notifications/notifications.service';
+import { emitMatchEvent, emitMatchPostWatchers, io } from '../../lib/socket';
 
 /**
  * Internal user select — includes phone/email. These fields must never be
@@ -116,25 +117,27 @@ function toPublicPost(post: InternalMatchPost, viewerId?: string): PublicMatchPo
 
 /**
  * Scrub a detailed post. Contact info is revealed:
- *  - creator ↔ accepted requesters
- *  - each user always sees their own contact info
+ *  - Organiser + everyone with an ACCEPTED request form a group: they all see
+ *    each other's phone/email (organiser + accepted players).
+ *  - Each user always sees their own contact on their request row.
+ *  - Pending / declined rows: contact stays hidden except for the requester themself.
  */
 function toPublicDetail(post: InternalMatchDetail, viewerId?: string): PublicMatchDetail {
   const viewerIsCreator = viewerId === post.creatorId;
-  const viewerAcceptedRequest = viewerId
-    ? post.requests.find((r) => r.userId === viewerId && r.status === 'ACCEPTED')
-    : undefined;
-  const creatorVisibleToViewer = viewerIsCreator || !!viewerAcceptedRequest;
+  const viewerInGroup =
+    !!viewerId &&
+    (viewerIsCreator ||
+      post.requests.some((r) => r.userId === viewerId && r.status === 'ACCEPTED'));
 
   return {
     ...post,
-    creator: scrubUser(post.creator, { revealContact: creatorVisibleToViewer }),
+    creator: scrubUser(post.creator, { revealContact: viewerInGroup }),
     requests: post.requests.map((r) => {
       const isSelf = r.userId === viewerId;
-      const creatorSeesAccepted = viewerIsCreator && r.status === 'ACCEPTED';
+      const revealAcceptedPeer = r.status === 'ACCEPTED' && viewerInGroup;
       return {
         ...r,
-        user: scrubUser(r.user, { revealContact: isSelf || creatorSeesAccepted }),
+        user: scrubUser(r.user, { revealContact: isSelf || revealAcceptedPeer }),
       };
     }),
   };
@@ -262,6 +265,7 @@ export async function updateMatchPost(
     data,
     include: INTERNAL_DETAIL_INCLUDE,
   });
+  emitMatchPostWatchers(id);
   return toPublicDetail(updated, userId);
 }
 
@@ -298,6 +302,8 @@ export async function cancelMatchPost(userId: string, id: string) {
       }),
     ),
   );
+
+  emitMatchPostWatchers(post.id);
 
   return updated;
 }
@@ -405,6 +411,8 @@ export async function createJoinRequest(
     data: { matchPostId: post.id, requestId: created.id },
   });
 
+  emitMatchPostWatchers(post.id);
+
   return created;
 }
 
@@ -452,6 +460,17 @@ export async function respondToJoinRequest(
       data: { matchPostId: post.id, requestId: updated.id },
     });
 
+    // Automatically add the new member to the live chat room
+    emitMatchEvent(post.id, 'match:member_added', {
+      matchPostId: post.id,
+      userId: request.userId,
+    });
+
+    // Tell the new member to join the chat room on their side
+    if (io) {
+      io.to(`user:${request.userId}`).emit('chat:auto_join', { matchPostId: post.id });
+    }
+
     if (post._count.requests + 1 >= post.neededPlayers) {
       await prisma.matchPost.update({
         where: { id: matchPostId },
@@ -477,6 +496,8 @@ export async function respondToJoinRequest(
     });
   }
 
+  emitMatchPostWatchers(matchPostId);
+
   return updated;
 }
 
@@ -492,5 +513,6 @@ export async function withdrawJoinRequest(userId: string, matchPostId: string) {
     );
   }
   await prisma.matchJoinRequest.delete({ where: { id: request.id } });
+  emitMatchPostWatchers(matchPostId);
 }
 

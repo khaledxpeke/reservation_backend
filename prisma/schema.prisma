@@ -97,6 +97,7 @@ enum NotificationType {
   MATCH_POST_CANCELLED
   MATCH_POST_FULL
   MATCH_POST_EXPIRED
+  MATCH_CHAT_MESSAGE
 }
 
 enum SportType {
@@ -123,6 +124,7 @@ model User {
   matchPosts        MatchPost[]        @relation("MatchPostCreator")
   matchJoinRequests MatchJoinRequest[] @relation("MatchJoinRequester")
   notifications     Notification[]
+  chatMessages      ChatMessage[]
 
   @@map("users")
 }
@@ -327,6 +329,20 @@ model Pack {
   @@map("packs")
 }
 
+model ChatMessage {
+  id          String   @id @default(uuid())
+  matchPostId String
+  senderId    String
+  content     String
+  createdAt   DateTime @default(now())
+
+  matchPost MatchPost @relation(fields: [matchPostId], references: [id], onDelete: Cascade)
+  sender    User      @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([matchPostId, createdAt])
+  @@map("chat_messages")
+}
+
 model MatchPost {
   id            String           @id @default(uuid())
   creatorId     String
@@ -350,8 +366,9 @@ model MatchPost {
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
 
-  creator  User               @relation("MatchPostCreator", fields: [creatorId], references: [id], onDelete: Cascade)
-  requests MatchJoinRequest[]
+  creator      User               @relation("MatchPostCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+  requests     MatchJoinRequest[]
+  chatMessages ChatMessage[]
 
   @@index([date, status])
   @@index([governorate, status])

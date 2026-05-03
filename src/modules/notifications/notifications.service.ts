@@ -4,6 +4,7 @@ import { logger } from '../../lib/logger';
 import { NotFoundError } from '../../lib/errors';
 import { paginate, paginatedResponse, PaginationInput } from '../../lib/pagination';
 import { ListNotificationsQuery } from './notifications.schema';
+import { emitNotification } from '../../lib/socket';
 
 export interface CreateNotificationInput {
   userId: string;
@@ -15,12 +16,13 @@ export interface CreateNotificationInput {
 }
 
 /**
- * Persist a notification. Errors are swallowed so that a notification failure
- * never breaks the underlying business operation.
+ * Persist a notification and push it in real-time via WebSocket.
+ * Errors are swallowed so that a notification failure never breaks the
+ * underlying business operation.
  */
 export async function createNotification(input: CreateNotificationInput) {
   try {
-    return await prisma.notification.create({
+    const notif = await prisma.notification.create({
       data: {
         userId: input.userId,
         type: input.type,
@@ -30,6 +32,9 @@ export async function createNotification(input: CreateNotificationInput) {
         data: input.data,
       },
     });
+    // Push real-time; safe even if socket server isn't initialised yet
+    emitNotification(input.userId, notif);
+    return notif;
   } catch (err) {
     logger.error({ err }, 'Failed to create notification');
     return null;

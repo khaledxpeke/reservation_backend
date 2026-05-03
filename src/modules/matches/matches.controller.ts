@@ -2,6 +2,8 @@ import { Request, Response, NextFunction } from 'express';
 import * as matchesService from './matches.service';
 import { getParam } from '../../lib/helpers';
 import { ListMatchPostsQuery } from './matches.schema';
+import { prisma } from '../../lib/prisma';
+import { ForbiddenError } from '../../lib/errors';
 
 export async function listPosts(req: Request, res: Response, next: NextFunction) {
   try {
@@ -104,6 +106,52 @@ export async function withdrawRequest(req: Request, res: Response, next: NextFun
   try {
     await matchesService.withdrawJoinRequest(req.user!.userId, getParam(req, 'id'));
     res.json({ success: true, data: { message: 'Request withdrawn' } });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function getChatMessages(req: Request, res: Response, next: NextFunction) {
+  try {
+    const matchPostId = getParam(req, 'id');
+    const userId = req.user!.userId;
+
+    // Only members (creator or accepted) can read the chat
+    const post = await prisma.matchPost.findUnique({
+      where: { id: matchPostId },
+      select: {
+        creatorId: true,
+        requests: { where: { userId, status: 'ACCEPTED' }, select: { id: true } },
+      },
+    });
+    if (!post) {
+      res.status(404).json({ success: false, error: 'Not found' });
+      return;
+    }
+    const isMember = post.creatorId === userId || post.requests.length > 0;
+    if (!isMember) throw new ForbiddenError('Not a member of this match');
+
+    const cursor = req.query.before as string | undefined;
+    const limit = Math.min(Number(req.query.limit ?? 50), 100);
+
+    const messages = await prisma.chatMessage.findMany({
+      where: {
+        matchPostId,
+        ...(cursor ? { createdAt: { lt: new Date(cursor) } } : {}),
+      },
+      include: {
+        sender: {
+          select: {
+            id: true,
+            customerProfile: { select: { firstName: true, lastName: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    });
+
+    res.json({ success: true, data: messages.reverse() });
   } catch (err) {
     next(err);
   }

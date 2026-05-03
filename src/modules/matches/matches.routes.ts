@@ -89,5 +89,13 @@ router.patch(
   matchesController.respondRequest,
 );
 
+// Chat history (authenticated members only)
+router.get(
+  '/:id/messages',
+  ...customerOnly,
+  validate({ params: matchIdParamSchema }),
+  matchesController.getChatMessages,
+);
+
 export default router;
 
