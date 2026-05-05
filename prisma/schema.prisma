@@ -180,8 +180,9 @@ model Partner {
   category  Category   @relation(fields: [categoryId], references: [id])
   pack      Pack?      @relation(fields: [packId], references: [id])
   resources Resource[]
-  offers    Offer[]
-  factures  ReservationFacture[]
+  offers     Offer[]
+  factures   ReservationFacture[]
+  matchPosts MatchPost[]
 
   @@map("partners")
 }
@@ -198,6 +199,7 @@ model Category {
 
   subCategories SubCategory[]
   partners      Partner[]
+  matchPosts    MatchPost[]
 
   @@map("categories")
 }
@@ -212,8 +214,9 @@ model SubCategory {
    */
   imageUrl           String?
 
-  category  Category   @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  resources Resource[]
+  category   Category    @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  resources  Resource[]
+  matchPosts MatchPost[]
 
   @@unique([categoryId, name])
   @@map("sub_categories")
@@ -344,34 +347,68 @@ model ChatMessage {
 }
 
 model MatchPost {
-  id            String           @id @default(uuid())
-  creatorId     String
+  id           String           @id @default(uuid())
+  creatorId    String
   /**
-   * Match date (YYYY-MM-DD).
+   * Marketplace category (e.g. Sports & Terrains, Activités Nautiques).
    */
-  date          DateTime         @db.Date
-  startTime     String // "HH:mm"
-  endTime       String // "HH:mm"
-  governorate   String?
-  city          String?
+  categoryId    String
   /**
-   * Number of additional players the creator is looking for.
+   * Marketplace sub-category (e.g. Padel, Jet ski).
    */
-  neededPlayers Int
-  sport         SportType        @default(PADEL)
-  genderPref    GenderPreference @default(ANY)
-  skillLevel    SkillLevel
-  description   String?
-  status        MatchPostStatus  @default(OPEN)
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
+  subCategoryId String
+  /**
+   * First calendar day of the annonce (first schedule slot).
+   */
+  date         DateTime         @db.Date
+  startTime    String // "HH:mm" — mirrors first slot
+  endTime      String // "HH:mm" — mirrors first slot
+  /**
+   * Last calendar day covered by scheduleSlots (for expiry + filters).
+   */
+  lastSlotDate DateTime         @db.Date
+  /**
+   * Full programme: [{ "date":"YYYY-MM-DD", "startTime":"HH:mm", "endTime":"HH:mm" }, ...]
+   */
+  scheduleSlots Json?
+  governorate  String?
+  city         String?
+  /**
+   * Places / people the organiser still needs (e.g. passengers, group-buy slots, players).
+   */
+  neededPeople Int
+  /**
+   * Disciplines / labels libres (ex. Padel, Tennis, running…). Plusieurs valeurs possibles.
+   */
+  categories   String[]         @default([])
+  genderPref   GenderPreference @default(ANY)
+  /**
+   * Niveau recherché (texte libre), surtout pour la catégorie marketplace « sports ».
+   */
+  skillLevel   String?
+  /**
+   * Kind-specific fields, e.g. transportFrom, transportTo, groupTargetSize, discountPercent.
+   */
+  meta         Json             @default("{}")
+  partnerId    String?
+  description  String?
+  status       MatchPostStatus  @default(OPEN)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
 
   creator      User               @relation("MatchPostCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+  category     Category           @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  subCategory  SubCategory      @relation(fields: [subCategoryId], references: [id], onDelete: Restrict)
+  partner      Partner?           @relation(fields: [partnerId], references: [id], onDelete: SetNull)
   requests     MatchJoinRequest[]
   chatMessages ChatMessage[]
 
   @@index([date, status])
+  @@index([lastSlotDate, status])
   @@index([governorate, status])
+  @@index([partnerId])
+  @@index([categoryId])
+  @@index([subCategoryId])
   @@map("match_posts")
 }
 

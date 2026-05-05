@@ -13,7 +13,7 @@ async function closeExpiredMatchPosts(): Promise<void> {
   const today = startOfUtcToday();
 
   const expiredPosts = await prisma.matchPost.findMany({
-    where: { status: 'OPEN', date: { lt: today } },
+    where: { status: 'OPEN', lastSlotDate: { lt: today } },
     include: {
       requests: {
         where: { status: 'ACCEPTED' },
@@ -37,8 +37,8 @@ async function closeExpiredMatchPosts(): Promise<void> {
         userId: request.userId,
         type: 'MATCH_POST_EXPIRED',
         title: 'Partie terminée',
-        body: `La partie du ${new Date(post.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })} à ${post.startTime} est maintenant terminée.`,
-        url: `/jouer/${post.id}`,
+        body: `L'activité (${new Date(post.lastSlotDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}) est terminée.`,
+        url: `/annonces/${post.id}`,
         data: { matchPostId: post.id },
       });
     }

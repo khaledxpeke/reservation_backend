@@ -51,7 +51,7 @@ export function initSocket(httpServer: HttpServer) {
     socket.join(`user:${userId}`);
     logger.debug({ userId }, 'WS connected');
 
-    /** Anyone on /jouer/[id] can subscribe for live list updates (demands, statut). */
+    /** Anyone on /annonces/[id] can subscribe for live list updates (demands, statut). */
     socket.on('match:watch', (matchPostId: string) => {
       if (typeof matchPostId !== 'string' || !matchPostId) return;
       socket.join(`post:${matchPostId}`);
@@ -137,7 +137,7 @@ export function initSocket(httpServer: HttpServer) {
                 type: 'MATCH_CHAT_MESSAGE' as import('@prisma/client').NotificationType,
                 title: senderLabel,
                 body: bodyPreview,
-                url: `/jouer/${matchPostId}`,
+                url: `/annonces/${matchPostId}`,
                 data: {
                   matchPostId,
                   messageId: msg.id,

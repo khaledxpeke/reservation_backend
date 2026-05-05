@@ -1,61 +1,108 @@
 import { z } from 'zod';
 import { paginationSchema } from '../../lib/pagination';
 
-const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
 const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
 
-export const skillLevelSchema = z.enum(['BEGINNER', 'INTERMEDIATE', 'ADVANCED']);
+/** Accepte les heures type navigateur `9:30` ou `09:30`, normalise en `HH:mm`. */
+function parseHHMM(raw: string): { ok: true; value: string } | { ok: false } {
+  const m = raw.trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return { ok: false };
+  const h = Number(m[1]);
+  const min = Number(m[2]);
+  if (!Number.isInteger(h) || h < 0 || h > 23 || !Number.isInteger(min) || min < 0 || min > 59) {
+    return { ok: false };
+  }
+  return {
+    ok: true,
+    value: `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`,
+  };
+}
+
+const hhmmSchema = z
+  .string()
+  .refine((s) => parseHHMM(s).ok, { message: 'Heure invalide (format HH:mm)' })
+  .transform((s) => {
+    const r = parseHHMM(s);
+    return r.ok ? r.value : s;
+  });
+
 export const genderPrefSchema = z.enum(['ANY', 'MALE', 'FEMALE']);
 export const matchPostStatusSchema = z.enum(['OPEN', 'CLOSED', 'CANCELLED']);
 export const matchRequestStatusSchema = z.enum(['PENDING', 'ACCEPTED', 'DECLINED']);
-export const sportTypeSchema = z.enum(['PADEL', 'TENNIS', 'FOOTBALL', 'BASKETBALL', 'VOLLEYBALL', 'OTHER']);
 
-export const createMatchPostSchema = z
+const scheduleSlotSchema = z
   .object({
     date: z.string().regex(dateRegex, 'Must be YYYY-MM-DD'),
-    startTime: z.string().regex(timeRegex, 'Must be HH:mm'),
-    endTime: z.string().regex(timeRegex, 'Must be HH:mm'),
-    governorate: z.string().max(100).optional(),
-    city: z.string().max(100).optional(),
-    neededPlayers: z.coerce.number().int().min(1).max(20),
-    sport: sportTypeSchema.default('PADEL'),
-    genderPref: genderPrefSchema.default('ANY'),
-    skillLevel: skillLevelSchema,
-    description: z.string().max(500).optional(),
+    startTime: hhmmSchema,
+    endTime: hhmmSchema,
   })
-  .refine((d) => d.startTime < d.endTime, {
+  .refine((s) => s.startTime < s.endTime, {
     message: 'startTime must be before endTime',
     path: ['endTime'],
   });
 
+const metaSchema = z.record(z.string(), z.unknown()).optional();
+
+export const createMatchPostSchema = z.object({
+  /** Catégorie marketplace (ex. Sports & Terrains). */
+  categoryId: z.string().uuid(),
+  /** Sous-catégorie (ex. Padel) — doit appartenir à categoryId. */
+  subCategoryId: z.string().uuid(),
+  scheduleSlots: z
+    .array(scheduleSlotSchema)
+    .min(1, 'Au moins un créneau')
+    .max(30, 'Maximum 30 créneaux'),
+  governorate: z.string().max(100).optional(),
+  city: z.string().max(100).optional(),
+  neededPeople: z.coerce.number().int().min(1).max(50),
+  genderPref: genderPrefSchema.default('ANY'),
+  skillLevel: z.string().max(200).optional(),
+  description: z.string().min(10, 'Description trop courte').max(4000),
+  partnerId: z.preprocess(
+    (val) => (val === '' || val === null ? undefined : val),
+    z.string().uuid().optional(),
+  ),
+  meta: metaSchema,
+});
+
 export const updateMatchPostSchema = z
   .object({
-    date: z.string().regex(dateRegex).optional(),
-    startTime: z.string().regex(timeRegex).optional(),
-    endTime: z.string().regex(timeRegex).optional(),
+    categoryId: z.string().uuid().optional(),
+    subCategoryId: z.string().uuid().optional(),
+    scheduleSlots: z.array(scheduleSlotSchema).min(1).max(30).optional(),
     governorate: z.string().max(100).nullable().optional(),
     city: z.string().max(100).nullable().optional(),
-    neededPlayers: z.coerce.number().int().min(1).max(20).optional(),
-    sport: sportTypeSchema.optional(),
+    neededPeople: z.coerce.number().int().min(1).max(50).optional(),
     genderPref: genderPrefSchema.optional(),
-    skillLevel: skillLevelSchema.optional(),
-    description: z.string().max(500).nullable().optional(),
+    skillLevel: z.string().max(200).nullable().optional(),
+    description: z.string().min(10).max(4000).nullable().optional(),
+    partnerId: z.string().uuid().nullable().optional(),
+    meta: metaSchema,
     status: z.enum(['OPEN', 'CLOSED', 'CANCELLED']).optional(),
   })
   .refine((d) => Object.keys(d).length > 0, {
     message: 'At least one field is required',
-  });
+  })
+  .refine(
+    (d) => {
+      const c = d.categoryId !== undefined;
+      const s = d.subCategoryId !== undefined;
+      if (c !== s) return false;
+      return true;
+    },
+    { message: 'Catégorie et sous-catégorie requises ensemble', path: ['subCategoryId'] },
+  );
 
 export const listMatchPostsQuerySchema = paginationSchema.extend({
   status: matchPostStatusSchema.optional(),
   governorate: z.string().max(100).optional(),
-  skillLevel: skillLevelSchema.optional(),
+  /** Filtre : categories (texte) contient une entrée égale à cette valeur. */
+  category: z.string().max(100).optional(),
+  categoryId: z.string().uuid().optional(),
+  subCategoryId: z.string().uuid().optional(),
   genderPref: genderPrefSchema.optional(),
-  sport: sportTypeSchema.optional(),
   date: z.string().regex(dateRegex).optional(),
-  /** earliest date (inclusive) */
   dateFrom: z.string().regex(dateRegex).optional(),
-  /** latest date (inclusive) */
   dateTo: z.string().regex(dateRegex).optional(),
 });
 
@@ -78,5 +125,3 @@ export type UpdateMatchPostInput = z.infer<typeof updateMatchPostSchema>;
 export type ListMatchPostsQuery = z.infer<typeof listMatchPostsQuerySchema>;
 export type CreateJoinRequestInput = z.infer<typeof createJoinRequestSchema>;
 export type UpdateJoinRequestInput = z.infer<typeof updateJoinRequestSchema>;
-export type SportTypeInput = z.infer<typeof sportTypeSchema>;
-
