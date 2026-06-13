@@ -114,6 +114,14 @@ export const updateJoinRequestSchema = z.object({
   status: z.enum(['ACCEPTED', 'DECLINED']),
 });
 
+export const createLeaveRequestSchema = z.object({
+  message: z.string().max(300).optional(),
+});
+
+export const respondLeaveRequestSchema = z.object({
+  status: z.enum(['APPROVED', 'DECLINED']),
+});
+
 export const matchIdParamSchema = z.object({ id: z.string().uuid() });
 export const matchAndRequestIdParamSchema = z.object({
   id: z.string().uuid(),
@@ -125,3 +133,5 @@ export type UpdateMatchPostInput = z.infer<typeof updateMatchPostSchema>;
 export type ListMatchPostsQuery = z.infer<typeof listMatchPostsQuerySchema>;
 export type CreateJoinRequestInput = z.infer<typeof createJoinRequestSchema>;
 export type UpdateJoinRequestInput = z.infer<typeof updateJoinRequestSchema>;
+export type CreateLeaveRequestInput = z.infer<typeof createLeaveRequestSchema>;
+export type RespondLeaveRequestInput = z.infer<typeof respondLeaveRequestSchema>;

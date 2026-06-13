@@ -73,6 +73,12 @@ export function initSocket(httpServer: HttpServer) {
       socket.emit('chat:joined', { matchPostId });
     });
 
+    socket.on('chat:leave', (matchPostId: string) => {
+      if (typeof matchPostId !== 'string' || !matchPostId) return;
+      socket.leave(`match:${matchPostId}`);
+      socket.emit('chat:left', { matchPostId });
+    });
+
     // ── send a chat message ─────────────────────────────────────────────────
     socket.on('chat:send', async (payload: { matchPostId: string; content: string }) => {
       const { matchPostId, content } = payload;

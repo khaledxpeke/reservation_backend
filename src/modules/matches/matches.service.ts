@@ -9,13 +9,21 @@ import {
 import { paginate, paginatedResponse, PaginationInput } from '../../lib/pagination';
 import {
   CreateJoinRequestInput,
+  CreateLeaveRequestInput,
   CreateMatchPostInput,
   ListMatchPostsQuery,
+  RespondLeaveRequestInput,
   UpdateJoinRequestInput,
   UpdateMatchPostInput,
 } from './matches.schema';
 import { createNotification } from '../notifications/notifications.service';
 import { emitMatchEvent, emitMatchPostWatchers, io } from '../../lib/socket';
+import {
+  calendarDateYmdInTimeZone,
+  getAppTimeZone,
+  wallClockMinutesFromMidnightInTimeZone,
+} from '../../lib/slotPastFilter';
+import { logger } from '../../lib/logger';
 
 export type ScheduleSlot = { date: string; startTime: string; endTime: string };
 
@@ -206,8 +214,111 @@ export function normalizeScheduleSlots(post: {
     }
     if (out.length > 0) return out;
   }
-  const ymd = post.date.toISOString().slice(0, 10);
+  const ymd = utcDateFieldToYmd(post.date);
   return [{ date: ymd, startTime: post.startTime, endTime: post.endTime }];
+}
+
+function utcDateFieldToYmd(d: Date): string {
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(d.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function latestScheduleSlot(slots: ScheduleSlot[]): ScheduleSlot {
+  let latest = slots[0]!;
+  for (const s of slots) {
+    if (s.date > latest.date || (s.date === latest.date && s.endTime > latest.endTime)) {
+      latest = s;
+    }
+  }
+  return latest;
+}
+
+/** True when the last programme slot (date + endTime) is in the past (fuseau APP / Tunis). */
+export function isMatchPostExpired(
+  post: {
+    scheduleSlots: unknown;
+    date: Date;
+    startTime: string;
+    endTime: string;
+  },
+  now = new Date(),
+  timeZone = getAppTimeZone(),
+): boolean {
+  const slots = normalizeScheduleSlots(post);
+  if (slots.length === 0) return false;
+  const latest = latestScheduleSlot(slots);
+  const todayYmd = calendarDateYmdInTimeZone(now, timeZone);
+  if (latest.date < todayYmd) return true;
+  if (latest.date > todayYmd) return false;
+  const [eh, em] = latest.endTime.split(':').map(Number);
+  const endMins = (eh ?? 0) * 60 + (em ?? 0);
+  const nowMins = wallClockMinutesFromMidnightInTimeZone(now, timeZone);
+  return nowMins >= endMins;
+}
+
+function venueTodayUtcDate(now = new Date(), timeZone = getAppTimeZone()): Date {
+  return parseYmdToUtcDate(calendarDateYmdInTimeZone(now, timeZone));
+}
+
+/** Passe en CLOSED les annonces OPEN dont le dernier créneau est terminé. */
+export async function closeExpiredMatchPosts(): Promise<number> {
+  const now = new Date();
+  const tz = getAppTimeZone();
+  const todayDate = venueTodayUtcDate(now, tz);
+
+  const candidates = await prisma.matchPost.findMany({
+    where: { status: 'OPEN', lastSlotDate: { lte: todayDate } },
+    include: {
+      requests: {
+        where: { status: 'ACCEPTED' },
+        select: { userId: true },
+      },
+    },
+  });
+
+  const expired = candidates.filter((p) => isMatchPostExpired(p, now, tz));
+  if (expired.length === 0) return 0;
+
+  logger.info(`Closing ${expired.length} expired match post(s)`);
+
+  for (const post of expired) {
+    const updated = await prisma.matchPost.updateMany({
+      where: { id: post.id, status: 'OPEN' },
+      data: { status: 'CLOSED' },
+    });
+    if (updated.count === 0) continue;
+
+    emitMatchPostWatchers(post.id);
+
+    const dateLabel = new Date(post.lastSlotDate).toLocaleDateString('fr-FR', {
+      day: 'numeric',
+      month: 'long',
+    });
+
+    await createNotification({
+      userId: post.creatorId,
+      type: 'MATCH_POST_EXPIRED',
+      title: 'Annonce clôturée',
+      body: `Votre annonce (${dateLabel}) a été clôturée automatiquement : la date est passée.`,
+      url: `/annonces/${post.id}`,
+      data: { matchPostId: post.id },
+    });
+
+    for (const request of post.requests) {
+      await createNotification({
+        userId: request.userId,
+        type: 'MATCH_POST_EXPIRED',
+        title: 'Partie terminée',
+        body: `L'activité (${dateLabel}) est terminée.`,
+        url: `/annonces/${post.id}`,
+        data: { matchPostId: post.id },
+      });
+    }
+  }
+
+  return expired.length;
 }
 
 function asMetaRecord(meta: unknown): Record<string, unknown> {
@@ -309,6 +420,8 @@ async function assertPartnerExists(partnerId: string | null | undefined): Promis
 }
 
 export async function listMatchPosts(query: ListMatchPostsQuery, viewerId?: string) {
+  await closeExpiredMatchPosts();
+
   const where: Prisma.MatchPostWhereInput = {};
 
   where.status = query.status ?? 'OPEN';
@@ -331,7 +444,7 @@ export async function listMatchPosts(query: ListMatchPostsQuery, viewerId?: stri
       rangeAnd.push({ date: { lte: startOfUtcDay(query.dateTo) } });
     }
   } else if (where.status === 'OPEN') {
-    where.lastSlotDate = { gte: startOfUtcDay(new Date()) };
+    where.lastSlotDate = { gte: venueTodayUtcDate() };
   }
 
   if (rangeAnd.length > 0) {
@@ -365,6 +478,18 @@ export async function getMatchPost(id: string, viewerId?: string): Promise<Publi
     include: INTERNAL_DETAIL_INCLUDE,
   });
   if (!post) throw new NotFoundError('Match post');
+
+  if (post.status === 'OPEN' && isMatchPostExpired(post)) {
+    const updated = await prisma.matchPost.updateMany({
+      where: { id, status: 'OPEN' },
+      data: { status: 'CLOSED' },
+    });
+    if (updated.count > 0) {
+      emitMatchPostWatchers(id);
+    }
+    post.status = 'CLOSED';
+  }
+
   return shapePublicDetail(post, viewerId);
 }
 
@@ -569,6 +694,8 @@ export async function cancelMatchPost(userId: string, id: string) {
 }
 
 export async function listMyCreatedPosts(creatorId: string, query: ListMatchPostsQuery) {
+  await closeExpiredMatchPosts();
+
   const where: Prisma.MatchPostWhereInput = { creatorId };
   if (query.status) where.status = query.status;
 
@@ -594,6 +721,8 @@ export async function listMyCreatedPosts(creatorId: string, query: ListMatchPost
 }
 
 export async function listMyJoinRequests(userId: string, query: ListMatchPostsQuery) {
+  await closeExpiredMatchPosts();
+
   const where: Prisma.MatchJoinRequestWhereInput = { userId };
 
   const pagination: PaginationInput = { page: query.page, limit: query.limit };
@@ -639,6 +768,14 @@ export async function createJoinRequest(
   });
   if (!post) throw new NotFoundError('Match post');
   if (post.status !== 'OPEN') {
+    throw new BadRequestError('POST_CLOSED', 'This post is no longer open');
+  }
+  if (isMatchPostExpired(post)) {
+    await prisma.matchPost.update({
+      where: { id: matchPostId },
+      data: { status: 'CLOSED' },
+    });
+    emitMatchPostWatchers(matchPostId);
     throw new BadRequestError('POST_CLOSED', 'This post is no longer open');
   }
   if (post.creatorId === userId) {
@@ -776,4 +913,157 @@ export async function withdrawJoinRequest(userId: string, matchPostId: string) {
   }
   await prisma.matchJoinRequest.delete({ where: { id: request.id } });
   emitMatchPostWatchers(matchPostId);
+}
+
+export async function requestLeave(
+  userId: string,
+  matchPostId: string,
+  input: CreateLeaveRequestInput,
+) {
+  const post = await prisma.matchPost.findUnique({
+    where: { id: matchPostId },
+    select: { id: true, creatorId: true, date: true, startTime: true, endTime: true, scheduleSlots: true },
+  });
+  if (!post) throw new NotFoundError('Match post');
+  if (post.creatorId === userId) {
+    throw new BadRequestError('CREATOR_CANNOT_LEAVE', 'The organizer cannot leave their own post');
+  }
+
+  const request = await prisma.matchJoinRequest.findUnique({
+    where: { matchPostId_userId: { matchPostId, userId } },
+    include: { user: { select: INTERNAL_USER_SELECT } },
+  });
+  if (!request || request.status !== 'ACCEPTED') {
+    throw new ForbiddenError('Only accepted members can request to leave');
+  }
+  if ((request as unknown as { leaveStatus?: string }).leaveStatus === 'PENDING') {
+    throw new ConflictError('LEAVE_ALREADY_PENDING', 'Leave request already pending');
+  }
+
+  const updated = await prisma.matchJoinRequest.update({
+    where: { id: request.id },
+    data: {
+      leaveStatus: 'PENDING',
+      leaveMessage: input.message?.trim() || null,
+      leaveRequestedAt: new Date(),
+      leaveResolvedAt: null,
+    } as unknown as Prisma.MatchJoinRequestUpdateInput,
+  });
+
+  const requesterName = request.user.customerProfile
+    ? `${request.user.customerProfile.firstName} ${request.user.customerProfile.lastName}`
+    : 'Un participant';
+
+  const label = postScheduleSummary(post);
+
+  await createNotification({
+    userId: post.creatorId,
+    type: 'MATCH_LEAVE_REQUEST_RECEIVED' as import('@prisma/client').NotificationType,
+    title: 'Demande de départ',
+    body: `${requesterName} souhaite quitter le groupe (${label}).`,
+    url: `/annonces/${matchPostId}`,
+    data: { matchPostId, requestId: updated.id },
+  });
+
+  emitMatchPostWatchers(matchPostId);
+  return updated;
+}
+
+export async function respondLeaveRequest(
+  creatorId: string,
+  matchPostId: string,
+  requestId: string,
+  input: RespondLeaveRequestInput,
+) {
+  const post = await prisma.matchPost.findUnique({
+    where: { id: matchPostId },
+    select: {
+      id: true,
+      creatorId: true,
+      status: true,
+      neededPeople: true,
+      date: true,
+      startTime: true,
+      endTime: true,
+      scheduleSlots: true,
+    },
+  });
+  if (!post) throw new NotFoundError('Match post');
+  if (post.creatorId !== creatorId) {
+    throw new ForbiddenError('Only the creator can respond to leave requests');
+  }
+
+  const request = await prisma.matchJoinRequest.findUnique({
+    where: { id: requestId },
+    include: { user: { select: INTERNAL_USER_SELECT } },
+  });
+  if (!request || request.matchPostId !== matchPostId) {
+    throw new NotFoundError('Leave request');
+  }
+  if (
+    request.status !== 'ACCEPTED' ||
+    (request as unknown as { leaveStatus?: string }).leaveStatus !== 'PENDING'
+  ) {
+    throw new BadRequestError('INVALID_LEAVE_STATE', 'No pending leave request to respond to');
+  }
+
+  const label = postScheduleSummary(post);
+
+  if (input.status === 'APPROVED') {
+    // If the post was already "full" (and thus expected to stay hidden),
+    // we keep it CLOSED even after someone leaves.
+    const acceptedBefore = await prisma.matchJoinRequest.count({
+      where: { matchPostId, status: 'ACCEPTED' },
+    });
+    const wasComplete = post.status === 'CLOSED' || acceptedBefore >= post.neededPeople;
+
+    await prisma.$transaction(async (tx) => {
+      await tx.matchJoinRequest.delete({ where: { id: request.id } });
+      if (wasComplete) {
+        await tx.matchPost.update({
+          where: { id: matchPostId },
+          data: { status: 'CLOSED' },
+        });
+      }
+    });
+
+    await createNotification({
+      userId: request.userId,
+      type: 'MATCH_LEAVE_REQUEST_ACCEPTED' as import('@prisma/client').NotificationType,
+      title: 'Départ accepté',
+      body: `Votre départ du groupe (${label}) a été accepté.`,
+      url: `/annonces/${matchPostId}`,
+      data: { matchPostId },
+    });
+
+    emitMatchEvent(matchPostId, 'match:member_removed', {
+      matchPostId,
+      userId: request.userId,
+    });
+    if (io) {
+      io.to(`user:${request.userId}`).emit('chat:auto_leave', { matchPostId });
+    }
+    emitMatchPostWatchers(matchPostId);
+    return { success: true };
+  }
+
+  const declined = await prisma.matchJoinRequest.update({
+    where: { id: request.id },
+    data: {
+      leaveStatus: 'DECLINED',
+      leaveResolvedAt: new Date(),
+    } as unknown as Prisma.MatchJoinRequestUpdateInput,
+  });
+
+  await createNotification({
+    userId: request.userId,
+    type: 'MATCH_LEAVE_REQUEST_DECLINED' as import('@prisma/client').NotificationType,
+    title: 'Départ refusé',
+    body: `Votre demande de départ (${label}) a été refusée.`,
+    url: `/annonces/${matchPostId}`,
+    data: { matchPostId, requestId: declined.id },
+  });
+
+  emitMatchPostWatchers(matchPostId);
+  return declined;
 }

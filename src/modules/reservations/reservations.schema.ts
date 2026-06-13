@@ -33,8 +33,32 @@ export const listReservationsQuerySchema = paginationSchema.extend({
   status: z.enum(['PENDING', 'CONFIRMED', 'REJECTED', 'CANCELLED', 'PAID']).optional(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   resourceId: z.string().uuid().optional(),
+  /** Si présent (true / 1), la date filtre les résas qui chevauchent ce jour (ex. bloc multi-jours). */
+  dateOverlap: z.enum(['true', 'false', '1', '0']).optional(),
 });
 
+/** Partenaire : bloquer un créneau (réservation hors plateforme), sans coordonnées client. */
+export const partnerBlockSlotSchema = z
+  .object({
+    resourceId: z.string().uuid(),
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Must be YYYY-MM-DD format'),
+    /** Ressources à la journée : fin de plage (incluse). Si absent, = date (un seul jour). */
+    endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Must be YYYY-MM-DD format').optional(),
+    startTime: z.string().regex(timeRegex, 'Must be HH:mm format'),
+    endTime: z.string().regex(timeRegex, 'Must be HH:mm format'),
+    note: z.string().max(120).optional(),
+  })
+  .refine(
+    (data) => {
+      if (data.endDate && data.endDate !== data.date) {
+        return data.date <= data.endDate;
+      }
+      return data.startTime < data.endTime;
+    },
+    { message: 'Invalid time or date range' },
+  );
+
 export type CreateReservationInput = z.infer<typeof createReservationSchema>;
+export type PartnerBlockSlotInput = z.infer<typeof partnerBlockSlotSchema>;
 export type ListReservationsQuery = z.infer<typeof listReservationsQuerySchema>;
 

@@ -1,6 +1,7 @@
 import { DayOfWeek } from '@prisma/client';
 import { prisma } from '../../lib/prisma';
 import { NotFoundError } from '../../lib/errors';
+import { getAppTimeZone, omitPastSlotsForToday } from '../../lib/slotPastFilter';
 import { calculateSlotsForDay } from '../../lib/slotEngine';
 import { AvailableSlotsQuery } from './slots.schema';
 
@@ -54,6 +55,8 @@ export async function getAvailableSlots(query: AvailableSlotsQuery) {
     resource.bufferTimeMin
   );
 
-  return { date: query.date, dayOfWeek, slots };
+  const slotsFiltered = omitPastSlotsForToday(slots, query.date, new Date(), getAppTimeZone());
+
+  return { date: query.date, dayOfWeek, slots: slotsFiltered };
 }
 

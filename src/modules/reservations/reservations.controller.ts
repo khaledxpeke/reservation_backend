@@ -13,6 +13,15 @@ export async function createReservation(req: Request, res: Response, next: NextF
   }
 }
 
+export async function createPartnerBlock(req: Request, res: Response, next: NextFunction) {
+  try {
+    const data = await reservationsService.createPartnerTimeBlock(req.user!.userId, req.body);
+    res.status(201).json({ success: true, data });
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function listPartnerReservations(req: Request, res: Response, next: NextFunction) {
   try {
     const data = await reservationsService.listPartnerReservations(req.user!.userId, req.query as unknown as ListReservationsQuery);

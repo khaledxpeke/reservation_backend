@@ -1,9 +1,15 @@
-import { Prisma, ReservationStatus } from '@prisma/client';
+import { DayOfWeek, Prisma, ReservationStatus } from '@prisma/client';
 import { prisma } from '../../lib/prisma';
 import { redis } from '../../lib/redis';
+import { calculateSlotsForDay } from '../../lib/slotEngine';
 import { paginate, paginatedResponse, PaginationInput } from '../../lib/pagination';
-import { ConflictError, ForbiddenError, NotFoundError } from '../../lib/errors';
-import { CreateReservationInput, ListReservationsQuery } from './reservations.schema';
+import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from '../../lib/errors';
+import { assertBookableNotInPastWallTime, getAppTimeZone } from '../../lib/slotPastFilter';
+import {
+  CreateReservationInput,
+  ListReservationsQuery,
+  PartnerBlockSlotInput,
+} from './reservations.schema';
 import {
   computeReservationTotal,
   getNextFactureReference,
@@ -19,12 +25,256 @@ function slotLockKey(resourceId: string, date: string, startTime: string): strin
   return `${SLOT_LOCK_PREFIX}${resourceId}:${date}:${startTime}`;
 }
 
+const UTC_DAY_MAP: Record<number, DayOfWeek> = {
+  0: 'SUNDAY',
+  1: 'MONDAY',
+  2: 'TUESDAY',
+  3: 'WEDNESDAY',
+  4: 'THURSDAY',
+  5: 'FRIDAY',
+  6: 'SATURDAY',
+};
+
+function utcDayOfWeekFromYmd(ymd: string): DayOfWeek {
+  const d = new Date(`${ymd}T12:00:00.000Z`);
+  return UTC_DAY_MAP[d.getUTCDay()]!;
+}
+
+function timeToMinutes(time: string): number {
+  const [h, m] = time.split(':').map(Number);
+  return h * 60 + m;
+}
+
+/** Vérifie que le créneau correspond exactement à un slot « disponible » du moteur (agenda + réservations existantes). */
+async function assertPartnerSlotMatchesCalendar(
+  resourceId: string,
+  bufferTimeMin: number,
+  dateYmd: string,
+  startTime: string,
+  endTime: string,
+): Promise<void> {
+  assertBookableNotInPastWallTime(dateYmd, startTime, new Date(), getAppTimeZone());
+
+  const dayOfWeek = utcDayOfWeekFromYmd(dateYmd);
+  const availabilities = await prisma.availability.findMany({
+    where: { resourceId, dayOfWeek },
+  });
+  if (availabilities.length === 0) {
+    throw new BadRequestError('NO_AVAILABILITY', 'Aucune disponibilité ce jour-là pour cette ressource.');
+  }
+
+  const durationMin = timeToMinutes(endTime) - timeToMinutes(startTime);
+  if (durationMin <= 0) {
+    throw new BadRequestError('INVALID_RANGE', 'Plage horaire invalide.');
+  }
+
+  const dayStart = new Date(dateYmd);
+  dayStart.setUTCHours(0, 0, 0, 0);
+  const dayEnd = new Date(dateYmd);
+  dayEnd.setUTCHours(23, 59, 59, 999);
+
+  const reservations = await prisma.reservation.findMany({
+    where: {
+      resourceId,
+      date: { gte: dayStart, lte: dayEnd },
+      status: { in: BLOCKING_STATUSES },
+    },
+    select: { startTime: true, endTime: true },
+  });
+
+  const slots = calculateSlotsForDay(
+    availabilities.map((a) => ({
+      startTime: a.startTime,
+      endTime: a.endTime,
+      slotIntervalMin: a.slotIntervalMin,
+    })),
+    reservations,
+    durationMin,
+    bufferTimeMin,
+  );
+
+  const ok = slots.some(
+    (s) =>
+      s.startTime === startTime &&
+      s.endTime === endTime &&
+      s.status === 'available',
+  );
+  if (!ok) {
+    throw new BadRequestError(
+      'SLOT_NOT_AVAILABLE',
+      'Ce créneau ne peut pas être bloqué (déjà pris ou hors de votre agenda).',
+    );
+  }
+}
+
+export async function createPartnerTimeBlock(partnerUserId: string, input: PartnerBlockSlotInput) {
+  const resource = await prisma.resource.findUnique({
+    where: { id: input.resourceId },
+    include: { partner: true },
+  });
+  if (!resource || !resource.isActive) throw new NotFoundError('Resource');
+  if (resource.partner.userId !== partnerUserId) {
+    throw new ForbiddenError('Vous ne pouvez bloquer que vos propres ressources.');
+  }
+
+  const isDayBased = resource.bookingUnit === 'DAYS';
+  let rangeEndYmd: string;
+  let startTime = input.startTime;
+  let endTime = input.endTime;
+  let prismaEndDate: Date | null = null;
+
+  if (isDayBased) {
+    rangeEndYmd = input.endDate ?? input.date;
+    if (rangeEndYmd < input.date) {
+      throw new BadRequestError('INVALID_RANGE', 'La date de fin doit être le même jour ou après le début.');
+    }
+    startTime = '00:00';
+    endTime = '23:59';
+    prismaEndDate = new Date(rangeEndYmd);
+  } else {
+    if (input.endDate && input.endDate !== input.date) {
+      throw new BadRequestError(
+        'DAY_RANGE_NOT_ALLOWED',
+        'Les blocages sur plusieurs jours sont possibles uniquement pour les ressources facturées à la journée.',
+      );
+    }
+    await assertPartnerSlotMatchesCalendar(
+      input.resourceId,
+      resource.bufferTimeMin,
+      input.date,
+      input.startTime,
+      input.endTime,
+    );
+    rangeEndYmd = input.date;
+    prismaEndDate = null;
+  }
+
+  const lockKey = isDayBased
+    ? `partner:block:${input.resourceId}:${input.date}:${rangeEndYmd}`
+    : slotLockKey(input.resourceId, input.date, startTime);
+  let lockHeld = false;
+  if (redis) {
+    try {
+      const locked = await redis.set(lockKey, '1', 'EX', SLOT_LOCK_TTL, 'NX');
+      if (!locked) {
+        throw new ConflictError('SLOT_LOCKED', 'Ce créneau est en cours de réservation.');
+      }
+      lockHeld = true;
+    } catch (err) {
+      if (err instanceof ConflictError) throw err;
+    }
+  }
+
+  const dateStart = new Date(input.date);
+  dateStart.setUTCHours(0, 0, 0, 0);
+  const dateEndRange = new Date(rangeEndYmd);
+  dateEndRange.setUTCHours(23, 59, 59, 999);
+
+  const guestNote = input.note?.trim();
+  const guestName = guestNote
+    ? `Hors plateforme — ${guestNote.slice(0, 80)}`
+    : 'Hors plateforme';
+
+  try {
+    return await prisma.$transaction(async (tx) => {
+      let conflicting;
+      if (isDayBased && rangeEndYmd !== input.date) {
+        conflicting = await tx.reservation.findFirst({
+          where: {
+            resourceId: input.resourceId,
+            status: { in: BLOCKING_STATUSES },
+            OR: [
+              {
+                date: { lte: dateEndRange },
+                endDate: { gte: dateStart },
+              },
+              {
+                endDate: null,
+                date: { gte: dateStart, lte: dateEndRange },
+              },
+            ],
+          },
+        });
+      } else {
+        const dayEnd = new Date(input.date);
+        dayEnd.setUTCHours(23, 59, 59, 999);
+        conflicting = await tx.reservation.findFirst({
+          where: {
+            resourceId: input.resourceId,
+            status: { in: BLOCKING_STATUSES },
+            OR: [
+              {
+                date: { lte: dateStart },
+                endDate: { gte: dateStart },
+              },
+              {
+                endDate: null,
+                date: { gte: dateStart, lte: isDayBased ? dateEndRange : dayEnd },
+                startTime: { lt: endTime },
+                endTime: { gt: startTime },
+              },
+            ],
+          },
+        });
+      }
+
+      if (conflicting) {
+        throw new ConflictError('SLOT_ALREADY_BOOKED', 'Ce créneau n’est plus libre.');
+      }
+
+      const createdAt = new Date();
+      const monthStart = new Date(Date.UTC(createdAt.getUTCFullYear(), createdAt.getUTCMonth(), 1));
+      const nextMonthStart = new Date(
+        Date.UTC(createdAt.getUTCFullYear(), createdAt.getUTCMonth() + 1, 1),
+      );
+      const monthCount = await tx.reservation.count({
+        where: { createdAt: { gte: monthStart, lt: nextMonthStart } },
+      });
+
+      return tx.reservation.create({
+        data: {
+          reference: getNextReservationReference(monthCount + 1, createdAt),
+          resourceId: input.resourceId,
+          userId: null,
+          guestName,
+          guestPhone: 'externe',
+          guestEmail: null,
+          date: new Date(input.date),
+          endDate: prismaEndDate,
+          startTime,
+          endTime,
+          status: 'CONFIRMED',
+          createdAt,
+        },
+        include: {
+          resource: { select: { name: true, partner: { select: { name: true } } } },
+        },
+      });
+    });
+  } finally {
+    if (redis && lockHeld) {
+      try {
+        await redis.del(lockKey);
+      } catch {
+        // ignore
+      }
+    }
+  }
+}
+
 export async function createReservation(input: CreateReservationInput, userId?: string) {
   const resource = await prisma.resource.findUnique({
     where: { id: input.resourceId },
     include: { partner: true },
   });
   if (!resource || !resource.isActive) throw new NotFoundError('Resource');
+
+  if (resource.bookingUnit !== 'DAYS') {
+    const singleCalendarDay = !input.endDate || input.endDate === input.date;
+    if (singleCalendarDay) {
+      assertBookableNotInPastWallTime(input.date, input.startTime, new Date(), getAppTimeZone());
+    }
+  }
 
   const lockKey = slotLockKey(input.resourceId, input.date, input.startTime);
 
@@ -145,7 +395,24 @@ export async function listPartnerReservations(userId: string, query: ListReserva
     dateStart.setUTCHours(0, 0, 0, 0);
     const dateEnd = new Date(query.date);
     dateEnd.setUTCHours(23, 59, 59, 999);
-    where.date = { gte: dateStart, lte: dateEnd };
+    const useOverlap = query.dateOverlap === 'true' || query.dateOverlap === '1';
+    if (useOverlap) {
+      where.AND = [
+        {
+          OR: [
+            {
+              AND: [{ date: { lte: dateEnd } }, { endDate: { gte: dateStart } }],
+            },
+            {
+              endDate: null,
+              date: { gte: dateStart, lte: dateEnd },
+            },
+          ],
+        },
+      ];
+    } else {
+      where.date = { gte: dateStart, lte: dateEnd };
+    }
   }
 
   const pagination: PaginationInput = { page: query.page, limit: query.limit };

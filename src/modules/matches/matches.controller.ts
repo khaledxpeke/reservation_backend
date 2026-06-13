@@ -111,6 +111,33 @@ export async function withdrawRequest(req: Request, res: Response, next: NextFun
   }
 }
 
+export async function requestLeave(req: Request, res: Response, next: NextFunction) {
+  try {
+    const data = await matchesService.requestLeave(
+      req.user!.userId,
+      getParam(req, 'id'),
+      req.body,
+    );
+    res.status(201).json({ success: true, data });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function respondLeave(req: Request, res: Response, next: NextFunction) {
+  try {
+    const data = await matchesService.respondLeaveRequest(
+      req.user!.userId,
+      getParam(req, 'id'),
+      getParam(req, 'requestId'),
+      req.body,
+    );
+    res.json({ success: true, data });
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function getChatMessages(req: Request, res: Response, next: NextFunction) {
   try {
     const matchPostId = getParam(req, 'id');

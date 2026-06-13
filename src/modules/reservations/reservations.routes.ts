@@ -6,6 +6,7 @@ import { authorize } from '../../middleware/authorize';
 import { validate } from '../../middleware/validate';
 import {
   createReservationSchema,
+  partnerBlockSlotSchema,
   updateReservationStatusSchema,
   reservationIdParamSchema,
   listReservationsQuerySchema,
@@ -26,6 +27,14 @@ router.post(
   optionalAuthenticate,
   validate({ body: createReservationSchema }),
   reservationsController.createReservation,
+);
+
+router.post(
+  '/partner/block',
+  authenticate,
+  authorize('PARTNER'),
+  validate({ body: partnerBlockSlotSchema }),
+  reservationsController.createPartnerBlock,
 );
 
 router.get(

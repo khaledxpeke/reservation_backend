@@ -1,57 +1,18 @@
 import cron from 'node-cron';
-import { prisma } from './prisma';
-import { createNotification } from '../modules/notifications/notifications.service';
+import { closeExpiredMatchPosts } from '../modules/matches/matches.service';
 import { logger } from './logger';
 
-function startOfUtcToday(): Date {
-  const d = new Date();
-  d.setUTCHours(0, 0, 0, 0);
-  return d;
-}
-
-async function closeExpiredMatchPosts(): Promise<void> {
-  const today = startOfUtcToday();
-
-  const expiredPosts = await prisma.matchPost.findMany({
-    where: { status: 'OPEN', lastSlotDate: { lt: today } },
-    include: {
-      requests: {
-        where: { status: 'ACCEPTED' },
-        select: { userId: true },
-      },
-    },
+export function startScheduler(): void {
+  closeExpiredMatchPosts().catch((err: unknown) => {
+    logger.error({ err }, 'Scheduler: failed to close expired match posts on startup');
   });
 
-  if (expiredPosts.length === 0) return;
-
-  logger.info(`Scheduler: closing ${expiredPosts.length} expired match post(s)`);
-
-  for (const post of expiredPosts) {
-    await prisma.matchPost.update({
-      where: { id: post.id },
-      data: { status: 'CLOSED' },
-    });
-
-    for (const request of post.requests) {
-      await createNotification({
-        userId: request.userId,
-        type: 'MATCH_POST_EXPIRED',
-        title: 'Partie terminée',
-        body: `L'activité (${new Date(post.lastSlotDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}) est terminée.`,
-        url: `/annonces/${post.id}`,
-        data: { matchPostId: post.id },
-      });
-    }
-  }
-}
-
-export function startScheduler(): void {
-  // Run daily at 00:05 UTC
-  cron.schedule('5 0 * * *', () => {
+  // Toutes les heures : clôturer les annonces dont le dernier créneau est passé
+  cron.schedule('0 * * * *', () => {
     closeExpiredMatchPosts().catch((err: unknown) => {
       logger.error({ err }, 'Scheduler: failed to close expired match posts');
     });
   });
 
-  logger.info('Scheduler started — expired match posts will be closed daily at 00:05 UTC');
+  logger.info('Scheduler started — expired match posts closed on startup and hourly');
 }

@@ -10,6 +10,8 @@ import {
   listMatchPostsQuerySchema,
   createJoinRequestSchema,
   updateJoinRequestSchema,
+  createLeaveRequestSchema,
+  respondLeaveRequestSchema,
   matchIdParamSchema,
   matchAndRequestIdParamSchema,
 } from './matches.schema';
@@ -87,6 +89,20 @@ router.patch(
   ...customerOnly,
   validate({ params: matchAndRequestIdParamSchema, body: updateJoinRequestSchema }),
   matchesController.respondRequest,
+);
+
+router.post(
+  '/:id/leave-requests/me',
+  ...customerOnly,
+  validate({ params: matchIdParamSchema, body: createLeaveRequestSchema }),
+  matchesController.requestLeave,
+);
+
+router.patch(
+  '/:id/leave-requests/:requestId',
+  ...customerOnly,
+  validate({ params: matchAndRequestIdParamSchema, body: respondLeaveRequestSchema }),
+  matchesController.respondLeave,
 );
 
 // Chat history (authenticated members only)
