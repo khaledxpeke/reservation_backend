@@ -20,8 +20,11 @@ const envSchema = z.object({
   SUPER_ADMIN_EMAIL: z.string().email().optional(),
   SUPER_ADMIN_PASSWORD: z.string().min(8).optional(),
 
-  /** Comma-separated list of allowed CORS origins. Defaults to localhost in dev. */
+  /** Comma-separated allowed CORS origins (no trailing slash). Supports wildcards: https://*.vercel.app */
   CORS_ORIGINS: z.string().default('http://localhost:3000'),
+
+  /** Production front URL — merged into CORS allowlist (e.g. https://your-app.vercel.app). */
+  FRONTEND_URL: z.string().url().optional(),
 
   /** Base URL for OpenAPI "Try it out" (include /api if you use a reverse proxy path). */
   PUBLIC_API_URL: z.string().url().default('http://localhost:4000'),

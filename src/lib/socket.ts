@@ -1,6 +1,6 @@
 import { Server as HttpServer } from 'http';
 import { Server as SocketServer, Socket } from 'socket.io';
-import { env } from '../config';
+import { isOriginAllowed } from './corsOrigins';
 import { verifyAccessToken } from './jwt';
 import { prisma } from './prisma';
 import { logger } from './logger';
@@ -13,11 +13,12 @@ export let io: SocketServer;
 //  user:{userId}        — personal room for notifications
 
 export function initSocket(httpServer: HttpServer) {
-  const allowedOrigins = env.CORS_ORIGINS.split(',').map((o) => o.trim()).filter(Boolean);
-
   io = new SocketServer(httpServer, {
     cors: {
-      origin: allowedOrigins,
+      origin: (origin, callback) => {
+        if (isOriginAllowed(origin)) callback(null, true);
+        else callback(new Error(`CORS: origin '${origin ?? '(none)'}' not allowed`));
+      },
       credentials: true,
     },
     path: '/socket.io',

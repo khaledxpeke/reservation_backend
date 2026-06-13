@@ -23,11 +23,10 @@ import marketplaceRoutes from './modules/marketplace/marketplace.routes';
 import customersRoutes from './modules/customers/customers.routes';
 import matchesRoutes from './modules/matches/matches.routes';
 import notificationsRoutes from './modules/notifications/notifications.routes';
+import { corsOriginCallback } from './lib/corsOrigins';
 import { startScheduler } from './lib/scheduler';
 
 const app = express();
-
-const allowedOrigins = env.CORS_ORIGINS.split(',').map((o) => o.trim()).filter(Boolean);
 
 app.use(
   helmet({
@@ -46,12 +45,7 @@ app.use(
 
 app.use(
   cors({
-    origin: (origin, callback) => {
-      // Allow requests with no origin (server-to-server, curl, Postman in dev)
-      if (!origin) return callback(null, true);
-      if (allowedOrigins.includes(origin)) return callback(null, true);
-      callback(new Error(`CORS: origin '${origin}' not allowed`));
-    },
+    origin: corsOriginCallback,
     credentials: true,
   }),
 );
